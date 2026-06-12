@@ -267,7 +267,7 @@ export default function VerifyPage() {
   // 기기 차단 여부 사전 확인
   useEffect(() => {
     if (!visitorId) return;
-    api.checkDevice(visitorId).then((res) => {
+    api.device.check(visitorId).then((res) => {
       if (res.is_banned) setBanned(true);
     }).catch(() => {});
   }, [visitorId]);
@@ -275,8 +275,8 @@ export default function VerifyPage() {
   const handleVerifyComplete = async () => {
     try {
       if (visitorId) {
-        await api.startVerification(
-          { user_id: 'user_' + Date.now(), device_fingerprint: visitorId },
+        await api.verification.start(
+          { user_id: 'user_' + Date.now(), device_fingerprint: visitorId, id_type: 'passport' },
           visitorId
         );
       }

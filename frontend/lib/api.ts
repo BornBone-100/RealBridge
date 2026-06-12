@@ -4,7 +4,7 @@ import type {
   OtpVerifyRequest, OtpVerifyResponse,
   VerificationStartRequest, VerificationStartResponse,
   ProfileSetupRequest, ProfileSetupResponse,
-  ChatSendRequest, ChatSendResponse,
+  ChatSendRequest, ChatSendResponse, ChatMessage,
   SubscriptionUpgradeRequest, SubscriptionUpgradeResponse,
   TopicSelectRequest, TopicSelectResponse,
   Match, Topic,

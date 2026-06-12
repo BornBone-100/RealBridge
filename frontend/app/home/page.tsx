@@ -162,7 +162,7 @@ export default function HomePage() {
     setLikeAnim(true);
     setTimeout(() => {
       setLikeAnim(false);
-      setLiked((p) => new Set([...p, profile.id]));
+      setLiked((p) => new Set(Array.from(p).concat(profile.id)));
       setProfileIdx(0);
       // 매칭됐다고 가정하고 주제 선택으로 이동
       router.push(`/matches/topic/match_new`);
@@ -171,7 +171,7 @@ export default function HomePage() {
 
   const handlePass = () => {
     if (!profile) return;
-    setPassed((p) => new Set([...p, profile.id]));
+    setPassed((p) => new Set(Array.from(p).concat(profile.id)));
     setProfileIdx(0);
   };
 
@@ -213,6 +213,7 @@ export default function HomePage() {
           <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-400" />
           </button>
         </div>
+      </div>
 
       {/* 스크롤 컨테이너 */}
       <div
