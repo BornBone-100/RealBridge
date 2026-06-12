@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { sendPhoneOtp, verifyPhoneOtp } from '@/lib/supabase';
 
 // ── 타입 ──────────────────────────────────────────────────
 type Step = 'country' | 'phone' | 'otp' | 'kyc' | 'profile';
@@ -97,14 +98,35 @@ function StepCountry({ onNext, form, setForm }: {
   );
 }
 
+// ── E.164 포맷 변환 ───────────────────────────────────────
+function toE164(dialCode: string, phone: string): string {
+  const digits = phone.replace(/\D/g, '').replace(/^0/, '');
+  return `${dialCode}${digits}`;
+}
+
 // ── 전화번호 입력 ─────────────────────────────────────────
 function StepPhone({ onNext, form, setForm }: {
-  onNext: () => void;
+  onNext: (e164: string) => void;
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
 }) {
   const country = COUNTRIES.find((c) => c.code === form.nationality)!;
   const isValid = form.phone.replace(/\D/g, '').length >= 9;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSend = async () => {
+    setError('');
+    setLoading(true);
+    const e164 = toE164(country.dialCode, form.phone);
+    const { error: otpError } = await sendPhoneOtp(e164);
+    setLoading(false);
+    if (otpError) {
+      setError(otpError.message || 'SMS 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+    onNext(e164);
+  };
 
   return (
     <div className="flex flex-col flex-1 px-6 pt-8">
@@ -121,43 +143,66 @@ function StepPhone({ onNext, form, setForm }: {
         <input
           type="tel"
           value={form.phone}
-          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+          onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); setError(''); }}
           placeholder="전화번호 입력"
           className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm text-gray-900
                      placeholder-gray-300 outline-none focus:border-gray-300 transition-colors"
         />
       </div>
 
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+
       <p className="text-xs text-gray-300 mb-8">
         인증 문자(SMS)가 발송됩니다
       </p>
 
       <button
-        onClick={onNext}
-        disabled={!isValid}
+        onClick={handleSend}
+        disabled={!isValid || loading}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
                    disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8"
       >
-        인증번호 받기
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            발송 중...
+          </span>
+        ) : '인증번호 받기'}
       </button>
     </div>
   );
 }
 
 // ── OTP 입력 ──────────────────────────────────────────────
-function StepOTP({ onNext, form, setForm }: {
+function StepOTP({ onNext, form, setForm, e164Phone }: {
   onNext: () => void;
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
+  e164Phone: string;
 }) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = form.otp.split('').concat(Array(6).fill('')).slice(0, 6);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(30);
+  const [resending, setResending] = useState(false);
+
+  // 재발송 쿨다운 타이머
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   const handleDigit = (idx: number, val: string) => {
     const clean = val.replace(/\D/g, '').slice(-1);
     const next = digits.slice();
     next[idx] = clean;
     setForm((f) => ({ ...f, otp: next.join('') }));
+    setError('');
     if (clean && idx < 5) inputRefs.current[idx + 1]?.focus();
   };
 
@@ -169,11 +214,35 @@ function StepOTP({ onNext, form, setForm }: {
 
   const isValid = form.otp.replace(/\D/g, '').length === 6;
 
+  const handleVerify = async () => {
+    setError('');
+    setLoading(true);
+    const { error: verifyError } = await verifyPhoneOtp(e164Phone, form.otp);
+    setLoading(false);
+    if (verifyError) {
+      setError('인증번호가 올바르지 않습니다. 다시 확인해 주세요.');
+      setForm((f) => ({ ...f, otp: '' }));
+      inputRefs.current[0]?.focus();
+      return;
+    }
+    onNext();
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    await sendPhoneOtp(e164Phone);
+    setResending(false);
+    setResendCooldown(30);
+    setForm((f) => ({ ...f, otp: '' }));
+    setError('');
+    inputRefs.current[0]?.focus();
+  };
+
   return (
     <div className="flex flex-col flex-1 px-6 pt-8">
       <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">인증번호를 입력해 주세요</h2>
       <p className="text-sm text-gray-400 mb-8">
-        {form.phone}으로 발송된 6자리 번호를 입력하세요
+        {e164Phone}으로 발송된 6자리 번호를 입력하세요
       </p>
 
       {/* OTP 입력 박스 */}
@@ -188,24 +257,43 @@ function StepOTP({ onNext, form, setForm }: {
             onChange={(e) => handleDigit(i, e.target.value)}
             onKeyDown={(e) => handleKey(i, e)}
             className={`w-12 h-14 text-center text-xl font-medium rounded-2xl border-[1.5px] outline-none transition-colors
-              ${d ? 'border-[#0f0f0f] text-gray-900' : 'border-gray-100 bg-gray-50 text-gray-900'}
+              ${error ? 'border-red-300 bg-red-50' : d ? 'border-[#0f0f0f] text-gray-900' : 'border-gray-100 bg-gray-50 text-gray-900'}
               focus:border-gray-400`}
           />
         ))}
       </div>
 
-      <p className="text-xs text-gray-300 mb-8">
-        <button className="underline text-gray-400">인증번호 재발송</button>
-        <span> (30초 후 가능)</span>
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+
+      <p className="text-xs text-gray-400 mb-8">
+        {resendCooldown > 0 ? (
+          <span className="text-gray-300">재발송 가능: {resendCooldown}초 후</span>
+        ) : (
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="underline text-gray-400 disabled:text-gray-300"
+          >
+            {resending ? '발송 중...' : '인증번호 재발송'}
+          </button>
+        )}
       </p>
 
       <button
-        onClick={onNext}
-        disabled={!isValid}
+        onClick={handleVerify}
+        disabled={!isValid || loading}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
                    disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8"
       >
-        인증 완료
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            확인 중...
+          </span>
+        ) : '인증 완료'}
       </button>
     </div>
   );
@@ -497,6 +585,7 @@ function StepProfile({ onFinish, form, setForm }: {
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('country');
+  const [e164Phone, setE164Phone] = useState('');
   const [form, setForm] = useState<FormData>({
     nationality: null,
     phone: '',
@@ -552,8 +641,8 @@ export default function OnboardingPage() {
 
       {/* 단계별 컨텐츠 */}
       {step === 'country' && <StepCountry onNext={next} form={form} setForm={setForm} />}
-      {step === 'phone'   && <StepPhone   onNext={next} form={form} setForm={setForm} />}
-      {step === 'otp'     && <StepOTP     onNext={next} form={form} setForm={setForm} />}
+      {step === 'phone'   && <StepPhone   onNext={(e164) => { setE164Phone(e164); next(); }} form={form} setForm={setForm} />}
+      {step === 'otp'     && <StepOTP     onNext={next} form={form} setForm={setForm} e164Phone={e164Phone} />}
       {step === 'kyc'     && <StepKYC     onNext={next} />}
       {step === 'profile' && <StepProfile onFinish={finish} form={form} setForm={setForm} />}
     </div>
