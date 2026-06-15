@@ -232,7 +232,7 @@ export default function ChatPage() {
       // 파트너 프로필
       const { data: pProfile } = await supabase
         .from('users')
-        .select('id, name, birth_year, district, mbti, is_verified')
+        .select('id, name, birth_year, district, mbti, verification_status')
         .eq('id', partnerId)
         .single();
 
@@ -256,7 +256,7 @@ export default function ChatPage() {
         age,
         district: pProfile?.district ?? null,
         mbti: pProfile?.mbti ?? null,
-        is_verified: pProfile?.is_verified ?? false,
+        is_verified: pProfile?.verification_status === 'approved',
         gradientFrom: GRADIENTS[0].from,
         gradientTo: GRADIENTS[0].to,
         topicContent,

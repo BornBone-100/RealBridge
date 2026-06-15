@@ -7,303 +7,634 @@ export type Json =
   | Json[]
 
 export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
-      admin_alerts: {
-        Row: {
-          created_at: string | null
-          id: string
-          is_resolved: boolean | null
-          reason: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_resolved?: boolean | null
-          reason: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_resolved?: boolean | null
-          reason?: string
-          user_id?: string
-        }
-      }
-      blocks: {
-        Row: { blocked: string; blocker: string; created_at: string | null; id: string }
-        Insert: { blocked: string; blocker: string; created_at?: string | null; id?: string }
-        Update: { blocked?: string; blocker?: string; created_at?: string | null; id?: string }
-      }
       chat_messages: {
         Row: {
-          created_at: string | null
+          content: string
+          created_at: string
           id: string
-          is_blocked: boolean | null
+          is_read: boolean
           match_id: string
-          original_lang: string
-          original_text: string
           sender_id: string
-          translated_lang: string | null
-          translated_text: string | null
         }
         Insert: {
-          created_at?: string | null
+          content: string
+          created_at?: string
           id?: string
-          is_blocked?: boolean | null
+          is_read?: boolean
           match_id: string
-          original_lang: string
-          original_text: string
           sender_id: string
-          translated_lang?: string | null
-          translated_text?: string | null
         }
         Update: {
-          created_at?: string | null
+          content?: string
+          created_at?: string
           id?: string
-          is_blocked?: boolean | null
+          is_read?: boolean
           match_id?: string
-          original_lang?: string
-          original_text?: string
           sender_id?: string
-          translated_lang?: string | null
-          translated_text?: string | null
         }
+        Relationships: []
       }
-      kyc_verifications: {
+      concierge_messages: {
         Row: {
-          confidence: number
+          content: string
+          created_at: string
           id: string
-          id_hash: string
-          id_type: Database['public']['Enums']['id_type'] | null
-          selfie_hash: string
+          is_from_admin: boolean
+          is_read: boolean
           user_id: string
-          verified_at: string | null
         }
         Insert: {
-          confidence: number
+          content: string
+          created_at?: string
           id?: string
-          id_hash: string
-          id_type?: Database['public']['Enums']['id_type'] | null
-          selfie_hash: string
+          is_from_admin?: boolean
+          is_read?: boolean
           user_id: string
-          verified_at?: string | null
         }
         Update: {
-          confidence?: number
+          content?: string
+          created_at?: string
           id?: string
-          id_hash?: string
-          id_type?: Database['public']['Enums']['id_type'] | null
-          selfie_hash?: string
+          is_from_admin?: boolean
+          is_read?: boolean
           user_id?: string
-          verified_at?: string | null
         }
+        Relationships: []
+      }
+      date_milestones: {
+        Row: {
+          completed_at: string | null
+          completed_by_a: boolean
+          completed_by_b: boolean
+          confirmed_at: string | null
+          confirmed_by_a: boolean
+          confirmed_by_b: boolean
+          confirmed_datetime: string | null
+          confirmed_location: string | null
+          created_at: string
+          feedback_sent_at: string | null
+          id: string
+          match_id: string
+          milestone_no: number
+          proposed_at: string | null
+          proposed_by: string | null
+          proposed_datetime: string | null
+          proposed_location: string | null
+          status: Database["public"]["Enums"]["milestone_status"]
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by_a?: boolean
+          completed_by_b?: boolean
+          confirmed_at?: string | null
+          confirmed_by_a?: boolean
+          confirmed_by_b?: boolean
+          confirmed_datetime?: string | null
+          confirmed_location?: string | null
+          created_at?: string
+          feedback_sent_at?: string | null
+          id?: string
+          match_id: string
+          milestone_no: number
+          proposed_at?: string | null
+          proposed_by?: string | null
+          proposed_datetime?: string | null
+          proposed_location?: string | null
+          status?: Database["public"]["Enums"]["milestone_status"]
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by_a?: boolean
+          completed_by_b?: boolean
+          confirmed_at?: string | null
+          confirmed_by_a?: boolean
+          confirmed_by_b?: boolean
+          confirmed_datetime?: string | null
+          confirmed_location?: string | null
+          created_at?: string
+          feedback_sent_at?: string | null
+          id?: string
+          match_id?: string
+          milestone_no?: number
+          proposed_at?: string | null
+          proposed_by?: string | null
+          proposed_datetime?: string | null
+          proposed_location?: string | null
+          status?: Database["public"]["Enums"]["milestone_status"]
+        }
+        Relationships: []
+      }
+      feedback_surveys: {
+        Row: {
+          answered_at: string | null
+          created_at: string
+          free_comment: string | null
+          id: string
+          is_answered: boolean
+          milestone_id: string
+          sent_at: string | null
+          sentiment: Database["public"]["Enums"]["feedback_sentiment"] | null
+          stop_reason: string | null
+          user_id: string
+          want_next_date: boolean | null
+        }
+        Insert: {
+          answered_at?: string | null
+          created_at?: string
+          free_comment?: string | null
+          id?: string
+          is_answered?: boolean
+          milestone_id: string
+          sent_at?: string | null
+          sentiment?: Database["public"]["Enums"]["feedback_sentiment"] | null
+          stop_reason?: string | null
+          user_id: string
+          want_next_date?: boolean | null
+        }
+        Update: {
+          answered_at?: string | null
+          created_at?: string
+          free_comment?: string | null
+          id?: string
+          is_answered?: boolean
+          milestone_id?: string
+          sent_at?: string | null
+          sentiment?: Database["public"]["Enums"]["feedback_sentiment"] | null
+          stop_reason?: string | null
+          user_id?: string
+          want_next_date?: boolean | null
+        }
+        Relationships: []
+      }
+      icebreaker_cards: {
+        Row: {
+          category: string
+          id: string
+          is_active: boolean
+          question: string
+        }
+        Insert: {
+          category?: string
+          id?: string
+          is_active?: boolean
+          question: string
+        }
+        Update: {
+          category?: string
+          id?: string
+          is_active?: boolean
+          question?: string
+        }
+        Relationships: []
       }
       like_quotas: {
-        Row: { quota_date: string | null; updated_at: string | null; used: number | null; user_id: string }
-        Insert: { quota_date?: string | null; updated_at?: string | null; used?: number | null; user_id: string }
-        Update: { quota_date?: string | null; updated_at?: string | null; used?: number | null; user_id?: string }
-      }
-      likes: {
-        Row: { created_at: string | null; from_user: string; id: string; to_user: string }
-        Insert: { created_at?: string | null; from_user: string; id?: string; to_user: string }
-        Update: { created_at?: string | null; from_user?: string; id?: string; to_user?: string }
+        Row: {
+          daily_limit: number
+          reset_at: string
+          updated_at: string
+          used: number
+          user_id: string
+        }
+        Insert: {
+          daily_limit?: number
+          reset_at?: string
+          updated_at?: string
+          used?: number
+          user_id: string
+        }
+        Update: {
+          daily_limit?: number
+          reset_at?: string
+          updated_at?: string
+          used?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       matches: {
         Row: {
-          created_at: string | null
+          admin_note: string | null
+          closed_at: string | null
           id: string
-          match_score: number | null
-          status: Database['public']['Enums']['match_status'] | null
-          topic_id: string | null
-          updated_at: string | null
-          user_a: string
-          user_b: string
+          matched_at: string
+          meetings_done: number
+          state: Database["public"]["Enums"]["match_state"]
+          stop_reason: string | null
+          stopped_by: string | null
+          user_a_id: string
+          user_b_id: string
         }
         Insert: {
-          created_at?: string | null
+          admin_note?: string | null
+          closed_at?: string | null
           id?: string
-          match_score?: number | null
-          status?: Database['public']['Enums']['match_status'] | null
-          topic_id?: string | null
-          updated_at?: string | null
-          user_a: string
-          user_b: string
+          matched_at?: string
+          meetings_done?: number
+          state?: Database["public"]["Enums"]["match_state"]
+          stop_reason?: string | null
+          stopped_by?: string | null
+          user_a_id: string
+          user_b_id: string
         }
         Update: {
-          created_at?: string | null
+          admin_note?: string | null
+          closed_at?: string | null
           id?: string
-          match_score?: number | null
-          status?: Database['public']['Enums']['match_status'] | null
-          topic_id?: string | null
-          updated_at?: string | null
-          user_a?: string
-          user_b?: string
+          matched_at?: string
+          meetings_done?: number
+          state?: Database["public"]["Enums"]["match_state"]
+          stop_reason?: string | null
+          stopped_by?: string | null
+          user_a_id?: string
+          user_b_id?: string
         }
+        Relationships: []
       }
-      reports: {
+      meetings: {
         Row: {
-          created_at: string | null
-          description: string | null
+          completed_at: string | null
+          confirmed_by_a: boolean
+          confirmed_by_b: boolean
+          created_at: string
           id: string
-          reason: Database['public']['Enums']['report_reason']
-          reported_id: string
-          reporter_id: string
-          status: Database['public']['Enums']['report_status'] | null
+          location: string | null
+          match_id: string
+          meeting_number: number
+          scheduled_at: string | null
+          status: Database["public"]["Enums"]["meeting_status"]
         }
         Insert: {
-          created_at?: string | null
-          description?: string | null
+          completed_at?: string | null
+          confirmed_by_a?: boolean
+          confirmed_by_b?: boolean
+          created_at?: string
           id?: string
-          reason: Database['public']['Enums']['report_reason']
-          reported_id: string
-          reporter_id: string
-          status?: Database['public']['Enums']['report_status'] | null
+          location?: string | null
+          match_id: string
+          meeting_number: number
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["meeting_status"]
         }
         Update: {
-          created_at?: string | null
-          description?: string | null
+          completed_at?: string | null
+          confirmed_by_a?: boolean
+          confirmed_by_b?: boolean
+          created_at?: string
           id?: string
-          reason?: Database['public']['Enums']['report_reason']
-          reported_id?: string
-          reporter_id?: string
-          status?: Database['public']['Enums']['report_status'] | null
+          location?: string | null
+          match_id?: string
+          meeting_number?: number
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["meeting_status"]
         }
+        Relationships: []
       }
-      scam_violations: {
+      payments: {
         Row: {
-          action: Database['public']['Enums']['scam_action'] | null
-          created_at: string | null
+          created_at: string
+          deposit_amount: number
           id: string
-          matched_patterns: Json | null
-          original_text: string | null
-          room_id: string | null
-          severity_score: number | null
+          paid_at: string | null
+          portone_payment_id: string | null
+          portone_receipt_url: string | null
+          portone_tx_id: string | null
+          refund_reason: string | null
+          refunded_amount: number | null
+          refunded_at: string | null
+          service_fee: number
+          status: Database["public"]["Enums"]["payment_status"]
+          total_amount: number
+          updated_at: string
           user_id: string
         }
         Insert: {
-          action?: Database['public']['Enums']['scam_action'] | null
-          created_at?: string | null
+          created_at?: string
+          deposit_amount?: number
           id?: string
-          matched_patterns?: Json | null
-          original_text?: string | null
-          room_id?: string | null
-          severity_score?: number | null
+          paid_at?: string | null
+          portone_payment_id?: string | null
+          portone_receipt_url?: string | null
+          portone_tx_id?: string | null
+          refund_reason?: string | null
+          refunded_amount?: number | null
+          refunded_at?: string | null
+          service_fee?: number
+          status?: Database["public"]["Enums"]["payment_status"]
+          total_amount?: number
+          updated_at?: string
           user_id: string
         }
         Update: {
-          action?: Database['public']['Enums']['scam_action'] | null
-          created_at?: string | null
+          created_at?: string
+          deposit_amount?: number
           id?: string
-          matched_patterns?: Json | null
-          original_text?: string | null
-          room_id?: string | null
-          severity_score?: number | null
+          paid_at?: string | null
+          portone_payment_id?: string | null
+          portone_receipt_url?: string | null
+          portone_tx_id?: string | null
+          refund_reason?: string | null
+          refunded_amount?: number | null
+          refunded_at?: string | null
+          service_fee?: number
+          status?: Database["public"]["Enums"]["payment_status"]
+          total_amount?: number
+          updated_at?: string
           user_id?: string
         }
+        Relationships: []
       }
-      topics: {
+      surveys: {
         Row: {
-          category: string | null
-          emoji: string | null
+          busan_district: string | null
+          created_at: string
+          date_styles: string[] | null
+          dealbreakers: string | null
+          hobbies: string[] | null
           id: string
-          is_active: boolean | null
-          title_ja: string | null
-          title_ko: string
-          title_zh: string | null
+          ideal_contact_freq: string | null
+          mbti: Database["public"]["Enums"]["mbti_type"] | null
+          personality_tags: string[] | null
+          relationship_goal: string | null
+          self_intro: string | null
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          category?: string | null
-          emoji?: string | null
+          busan_district?: string | null
+          created_at?: string
+          date_styles?: string[] | null
+          dealbreakers?: string | null
+          hobbies?: string[] | null
           id?: string
-          is_active?: boolean | null
-          title_ja?: string | null
-          title_ko: string
-          title_zh?: string | null
+          ideal_contact_freq?: string | null
+          mbti?: Database["public"]["Enums"]["mbti_type"] | null
+          personality_tags?: string[] | null
+          relationship_goal?: string | null
+          self_intro?: string | null
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          category?: string | null
-          emoji?: string | null
+          busan_district?: string | null
+          created_at?: string
+          date_styles?: string[] | null
+          dealbreakers?: string | null
+          hobbies?: string[] | null
           id?: string
-          is_active?: boolean | null
-          title_ja?: string | null
-          title_ko?: string
-          title_zh?: string | null
+          ideal_contact_freq?: string | null
+          mbti?: Database["public"]["Enums"]["mbti_type"] | null
+          personality_tags?: string[] | null
+          relationship_goal?: string | null
+          self_intro?: string | null
+          updated_at?: string
+          user_id?: string
         }
+        Relationships: []
       }
       users: {
         Row: {
           bio: string | null
-          birth_year: number | null
-          created_at: string | null
-          dating_values: string | null
-          device_fp: string | null
-          gender: string | null
+          birth_year: number
+          company_name: string | null
+          contact_freq: string | null
+          created_at: string
+          date_styles: string[] | null
+          district: string | null
+          gender: Database["public"]["Enums"]["gender_type"]
+          hobbies: string[] | null
           id: string
-          is_verified: boolean | null
-          lifestyle_tags: string[] | null
-          name: string | null
-          nationality: Database['public']['Enums']['nationality_code']
+          is_active: boolean
+          is_deposit_paid: boolean
+          mbti: string | null
+          name: string
+          occupation: string | null
           phone: string
-          profile_photos: string[] | null
-          status: Database['public']['Enums']['account_status'] | null
-          tier: Database['public']['Enums']['tier_type'] | null
-          updated_at: string | null
-          voice_intro_url: string | null
+          profile_photo_url: string | null
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["verification_status"]
         }
         Insert: {
           bio?: string | null
-          birth_year?: number | null
-          created_at?: string | null
-          dating_values?: string | null
-          device_fp?: string | null
-          gender?: string | null
+          birth_year?: number
+          company_name?: string | null
+          contact_freq?: string | null
+          created_at?: string
+          date_styles?: string[] | null
+          district?: string | null
+          gender?: Database["public"]["Enums"]["gender_type"]
+          hobbies?: string[] | null
           id?: string
-          is_verified?: boolean | null
-          lifestyle_tags?: string[] | null
-          name?: string | null
-          nationality: Database['public']['Enums']['nationality_code']
-          phone: string
-          profile_photos?: string[] | null
-          status?: Database['public']['Enums']['account_status'] | null
-          tier?: Database['public']['Enums']['tier_type'] | null
-          updated_at?: string | null
-          voice_intro_url?: string | null
+          is_active?: boolean
+          is_deposit_paid?: boolean
+          mbti?: string | null
+          name?: string
+          occupation?: string | null
+          phone?: string
+          profile_photo_url?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Update: {
           bio?: string | null
-          birth_year?: number | null
-          created_at?: string | null
-          dating_values?: string | null
-          device_fp?: string | null
-          gender?: string | null
+          birth_year?: number
+          company_name?: string | null
+          contact_freq?: string | null
+          created_at?: string
+          date_styles?: string[] | null
+          district?: string | null
+          gender?: Database["public"]["Enums"]["gender_type"]
+          hobbies?: string[] | null
           id?: string
-          is_verified?: boolean | null
-          lifestyle_tags?: string[] | null
-          name?: string | null
-          nationality?: Database['public']['Enums']['nationality_code']
+          is_active?: boolean
+          is_deposit_paid?: boolean
+          mbti?: string | null
+          name?: string
+          occupation?: string | null
           phone?: string
-          profile_photos?: string[] | null
-          status?: Database['public']['Enums']['account_status'] | null
-          tier?: Database['public']['Enums']['tier_type'] | null
-          updated_at?: string | null
-          voice_intro_url?: string | null
+          profile_photo_url?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
         }
+        Relationships: []
+      }
+      verification_documents: {
+        Row: {
+          admin_note: string | null
+          business_card_path: string | null
+          business_card_url: string | null
+          created_at: string
+          id: string
+          id_card_storage_path: string | null
+          id_card_url: string | null
+          income_proof_path: string | null
+          income_proof_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["verification_status"]
+          user_id: string
+          work_email: string | null
+          work_email_code: string | null
+          work_email_expires_at: string | null
+          work_email_verified: boolean
+        }
+        Insert: {
+          admin_note?: string | null
+          business_card_path?: string | null
+          business_card_url?: string | null
+          created_at?: string
+          id?: string
+          id_card_storage_path?: string | null
+          id_card_url?: string | null
+          income_proof_path?: string | null
+          income_proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          user_id: string
+          work_email?: string | null
+          work_email_code?: string | null
+          work_email_expires_at?: string | null
+          work_email_verified?: boolean
+        }
+        Update: {
+          admin_note?: string | null
+          business_card_path?: string | null
+          business_card_url?: string | null
+          created_at?: string
+          id?: string
+          id_card_storage_path?: string | null
+          id_card_url?: string | null
+          income_proof_path?: string | null
+          income_proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          user_id?: string
+          work_email?: string | null
+          work_email_code?: string | null
+          work_email_expires_at?: string | null
+          work_email_verified?: boolean
+        }
+        Relationships: []
       }
     }
-    Views: { [_ in never]: never }
-    Functions: { [_ in never]: never }
+    Views: {
+      user_active_matches: {
+        Row: {
+          match_id: string | null
+          matched_at: string | null
+          meetings_done: number | null
+          state: Database["public"]["Enums"]["match_state"] | null
+          user_a_id: string | null
+          user_b_id: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      has_active_match: { Args: { p_user_id: string }; Returns: boolean }
+      upsert_like_quota: { Args: { p_user_id: string }; Returns: undefined }
+    }
     Enums: {
-      account_status: 'active' | 'pending' | 'suspended' | 'banned'
-      id_type: 'passport' | 'resident_card' | 'drivers_license'
-      match_status: 'pending' | 'matched' | 'locked' | 'unmatched' | 'blocked'
-      nationality_code: 'KR' | 'JP' | 'TW'
-      report_reason: 'spam' | 'fake_profile' | 'harassment' | 'inappropriate' | 'scam' | 'other'
-      report_status: 'pending' | 'reviewed' | 'resolved'
-      scam_action: 'pass' | 'warn' | 'block'
-      tier_type: 'basic' | 'truenote'
+      deposit_status: "pending" | "held" | "released" | "refunded"
+      feedback_sentiment: "up" | "stay" | "down"
+      gender_type: "male" | "female"
+      match_state:
+        | "waiting"
+        | "active"
+        | "success"
+        | "stopped_no_fault"
+        | "stopped_fault"
+        | "cancelled"
+      mbti_type:
+        | "INTJ"
+        | "INTP"
+        | "ENTJ"
+        | "ENTP"
+        | "INFJ"
+        | "INFP"
+        | "ENFJ"
+        | "ENFP"
+        | "ISTJ"
+        | "ISFJ"
+        | "ESTJ"
+        | "ESFJ"
+        | "ISTP"
+        | "ISFP"
+        | "ESTP"
+        | "ESFP"
+      meeting_status: "scheduled" | "completed" | "cancelled"
+      milestone_status:
+        | "pending"
+        | "proposed"
+        | "confirmed"
+        | "completed"
+        | "cancelled"
+      payment_status:
+        | "pending"
+        | "paid"
+        | "fee_only"
+        | "refunded"
+        | "fully_released"
+      verification_status: "pending" | "approved" | "rejected"
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
