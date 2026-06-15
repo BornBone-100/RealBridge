@@ -95,60 +95,52 @@ interface Profile {
   emoji: string;            // 아바타 이모지
 }
 
-const PROFILES: Profile[] = [
-  {
-    id: 'p1', name: '지수', age: 26,
-    district: '수영구', job: 'UX 디자이너', mbti: 'INFJ',
-    emoji: '🌊',
-    tagline: '광안대교 야경 보면서 맥주 한 캔 어때요',
-    datingPhilosophy: '서두르지 않아도 괜찮아요. 천천히 서로를 알아가면서 진심이 쌓이는 게 좋더라고요. 가벼운 만남보다는 오래 함께할 수 있는 사람을 찾아요.',
-    busanFavorite: '수영구 골목 카페투어 🍵 — 광안리 해변 새벽 산책이 제 최애 코스예요.',
-    contactFrequency: '하루 1~2번 정도. 서로의 일상을 방해하지 않는 선에서 소소하게 연락하고 싶어요.',
-    bio: '부산에서 나고 자란 토박이예요. 낮에는 화면 디자인하고, 퇴근 후엔 광안리 근처를 어슬렁거리는 게 루틴이에요. 부산 바다가 세상에서 제일 예쁘다고 생각하고, 그 이유 하나로 서울 취업 제안 거절하고 남았어요. 함께 부산 맛집 탐방하고, 영화 보고, 사소한 것들로 웃을 수 있는 사람 만나고 싶어요.',
-    interests: ['카페투어', '영화', '바다', '드라이브'],
-    isTruenote: true,
-    gradientFrom: '#dbeafe', gradientTo: '#ede9fe',
-  },
-  {
-    id: 'p2', name: '민준', age: 29,
-    district: '해운대구', job: '회사원 (IT)', mbti: 'ENTP',
-    emoji: '🏄',
-    tagline: '해운대 주민인데 정작 바다는 잘 안 가요',
-    datingPhilosophy: '연애는 일상이 겹치는 것 같아요. 특별한 날보다 평범한 날을 같이 보낼 수 있는 사람이 좋아요.',
-    busanFavorite: '센텀 야경 드라이브 🚗 — 벡스코 앞 카페거리에서 노트북 펴는 것도 좋아해요.',
-    contactFrequency: '바쁜 날엔 짧게라도 안부 나누고, 여유 있을 때 길게 얘기해요.',
-    bio: '해운대 토박이인데 정작 모래사장은 1년에 두 번 갈까 말까예요. 주중엔 IT 회사 다니고 주말엔 드라이브 다니거나 카페에서 책 읽어요. 부산 사람들이 서울 사람들보다 정 많다는 거 진짜인 것 같아요. 같이 동백섬 산책하고 싶어요.',
-    interests: ['드라이브', '독서', '맛집', '테니스'],
-    isTruenote: true,
-    gradientFrom: '#d1fae5', gradientTo: '#cffafe',
-  },
-  {
-    id: 'p3', name: '예린', age: 25,
-    district: '남구', job: '간호사', mbti: 'ISFJ',
-    emoji: '🌸',
-    tagline: '이기대 야경 보고 싶은데 같이 갈 사람 없어요',
-    datingPhilosophy: '솔직하고 따뜻한 사람이 좋아요. 화려하지 않아도 진심으로 대해주는 사람.',
-    busanFavorite: '용호동 이기대 공원 🌿 — 남구에 숨은 뷰 맛집 많아요. 제가 안내해드릴게요.',
-    contactFrequency: '매일 연락하는 걸 좋아해요. 짧아도 괜찮아요, 생각난다는 게 중요하니까요.',
-    bio: '부산대병원 근처에서 일하고 있어요. 교대 근무라 주말이 불규칙하지만, 쉬는 날엔 꼭 밖으로 나가요. 남구에 이렇게 예쁜 곳이 많은데 혼자 다니기 아쉬웠거든요. 흰여울 문화마을이랑 이기대는 꼭 같이 가고 싶어요. 저 부산 맛집 진짜 많이 알아요.',
-    interests: ['등산', '카페', '요리', '사진'],
-    isTruenote: false,
-    gradientFrom: '#fce7f3', gradientTo: '#fef3c7',
-  },
-  {
-    id: 'p4', name: '태양', age: 28,
-    district: '부산진구', job: '자영업 (카페 운영)', mbti: 'ESTP',
-    emoji: '☕',
-    tagline: '서면 카페 사장인데 손님으로 와주실 분',
-    datingPhilosophy: '같이 있을 때 편한 사람이 최고예요. 웃음이 많고 솔직한 사람이면 충분해요.',
-    busanFavorite: '서면 골목 야식 투어 🍜 — 부산 사람이면 밤 11시 돼지국밥은 당연하죠.',
-    contactFrequency: '카페 운영하다 보니 낮엔 바빠요. 저녁에 여유롭게 얘기해요.',
-    bio: '서면에서 작은 카페 운영한 지 2년 됐어요. 커피 로스팅부터 직접 해요. 카페 일 마치고 혼자 맥주 한 캔 들고 광안리 나가는 게 낙이었는데, 그 맥주 같이 마실 사람 찾고 있어요. 부산 야식 코스는 저한테 맡겨주세요. 보수동 책방골목도 좋아해요.',
-    interests: ['커피', '야식', '독서', '바다'],
-    isTruenote: true,
-    gradientFrom: '#fef3c7', gradientTo: '#fde8d5',
-  },
+const GRADIENTS = [
+  { from: '#dbeafe', to: '#ede9fe' },
+  { from: '#d1fae5', to: '#cffafe' },
+  { from: '#fce7f3', to: '#fef3c7' },
+  { from: '#fef3c7', to: '#fde8d5' },
 ];
+
+const EMOJIS = ['🌊', '🌸', '☕', '🏄', '🌿', '✨', '🎨', '🎵'];
+
+function dbRowToProfile(row: {
+  id: string;
+  name: string;
+  birth_year: number;
+  district: string | null;
+  occupation: string | null;
+  mbti: string | null;
+  bio: string | null;
+  hobbies: string[] | null;
+  contact_freq: string | null;
+  verification_status: string;
+  date_styles: string[] | null;
+}, idx: number): Profile {
+  const age = new Date().getFullYear() - row.birth_year;
+  const bio = row.bio ?? '';
+  const sentences = bio.split(/[.。!?！？\n]/).map(s => s.trim()).filter(Boolean);
+  const tagline = sentences[0] ?? `부산 ${row.district ?? ''} 거주`;
+  const g = GRADIENTS[idx % GRADIENTS.length];
+  return {
+    id: row.id,
+    name: row.name,
+    age,
+    district: row.district ?? '부산',
+    job: row.occupation ?? '직업 미기재',
+    mbti: row.mbti ?? '',
+    tagline,
+    datingPhilosophy: sentences[1] ?? bio,
+    busanFavorite: row.district ? `부산 ${row.district} 거주` : '부산 거주',
+    contactFrequency: row.contact_freq ?? '자유롭게',
+    bio,
+    interests: row.hobbies ?? [],
+    isTruenote: row.verification_status === 'approved',
+    gradientFrom: g.from,
+    gradientTo: g.to,
+    emoji: EMOJIS[idx % EMOJIS.length],
+  };
+}
 
 // ── 레이어 진행 인디케이터 ────────────────────────────────
 function LayerDots({ current, total }: { current: number; total: number }) {
@@ -203,6 +195,7 @@ export default function HomePage() {
   const layer2Ref = useRef<HTMLDivElement>(null);
   const layer3Ref = useRef<HTMLDivElement>(null);
 
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [profileIdx, setProfileIdx] = useState(0);
   const [layerReached, setLayerReached] = useState(0);
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -257,11 +250,32 @@ export default function HomePage() {
       }
     };
 
+    // 피드 유저 로딩 (반대 성별, 활성 계정)
+    const loadProfiles = async () => {
+      const supabase = getClient();
+      const { data: me } = await supabase
+        .from('users')
+        .select('gender')
+        .eq('id', user.id)
+        .single();
+      const oppositeGender = me?.gender === 'male' ? 'female' : 'male';
+      const { data: rows } = await supabase
+        .from('users')
+        .select('id, name, birth_year, district, occupation, mbti, bio, hobbies, contact_freq, verification_status, date_styles')
+        .eq('gender', oppositeGender)
+        .eq('is_active', true)
+        .neq('id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (rows) setProfiles(rows.map((r, i) => dbRowToProfile(r, i)));
+    };
+
     checkLock();
     loadQuota();
+    loadProfiles();
   }, [user, authLoading]);
 
-  const profile = PROFILES.filter(
+  const profile = profiles.filter(
     (p) => !liked.has(p.id) && !passed.has(p.id)
   )[profileIdx] ?? null;
 

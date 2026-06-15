@@ -1,9 +1,18 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClient } from '@/lib/supabase';
 
 export default function WelcomePage() {
   const router = useRouter();
+
+  useEffect(() => {
+    // 이미 로그인된 세션이면 홈으로 바로 이동
+    getClient().auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace('/home');
+    });
+  }, [router]);
 
   return (
     <div className="flex-1 flex flex-col bg-[#0f0f0f] text-white min-h-screen">

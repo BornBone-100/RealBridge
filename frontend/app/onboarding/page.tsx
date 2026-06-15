@@ -496,7 +496,7 @@ export default function OnboardingPage() {
       id: user.id,
       phone: user.phone ?? '',
       name: form.name.trim(),
-      birth_year: isNaN(birthYear) ? null : birthYear,
+      birth_year: isNaN(birthYear) ? undefined : birthYear,
       gender: form.gender || null,
       occupation: form.occupation.trim() || null,
       company_name: form.companyName.trim() || null,
@@ -538,7 +538,23 @@ export default function OnboardingPage() {
       )}
 
       {step === 'phone'  && <StepPhone  form={form} setForm={setForm} onNext={(e164) => { setE164Phone(e164); next(); }} />}
-      {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={next} />}
+      {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={async () => {
+        // 이미 승인된 프로필이 있으면 홈으로 바로 이동
+        const supabase = getClient();
+        const { data: { user: u } } = await supabase.auth.getUser();
+        if (u) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('verification_status, is_deposit_paid, name')
+            .eq('id', u.id)
+            .single();
+          if (profile?.verification_status === 'approved' && profile?.is_deposit_paid && profile?.name) {
+            router.replace('/home');
+            return;
+          }
+        }
+        next();
+      }} />}
       {step === 'basic'  && <StepBasic  form={form} setForm={setForm} onNext={next} />}
       {step === 'survey' && <StepSurvey form={form} setForm={setForm} onNext={saveAndNext} />}
       {step === 'done'   && <StepDone   onContinue={() => router.push('/verify-docs')} />}
