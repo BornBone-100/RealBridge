@@ -16,8 +16,18 @@ export function createClient() {
   return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY)
 }
 
-// ── 싱글톤 (훅/유틸에서 바로 사용) ───────────────────────────
-export const supabase = createClient()
+// ── 싱글톤 (훅/유틸에서 바로 사용) — lazy 초기화 ──────────────
+let _client: ReturnType<typeof createClient> | null = null
+export function getClient() {
+  if (!_client) _client = createClient()
+  return _client
+}
+/** @deprecated use getClient() instead */
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_t, prop) {
+    return (getClient() as never)[prop as never]
+  },
+})
 
 // ── Auth 헬퍼 ─────────────────────────────────────────────────
 

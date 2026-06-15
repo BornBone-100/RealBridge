@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from threading import Lock
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,7 +23,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="RealBridge Verification API")
+# ── 새 라우터 임포트 ───────────────────────────────────────
+from routers import payment, verification, meetings, concierge
+from scheduler import start_scheduler, stop_scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """앱 시작 시 스케줄러 실행, 종료 시 정지."""
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="3rd Vibe API", lifespan=lifespan)
+
+# ── 라우터 등록 ────────────────────────────────────────────
+app.include_router(payment.router)
+app.include_router(verification.router)
+app.include_router(meetings.router)
+app.include_router(concierge.router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -3,8 +3,8 @@ import './globals.css';
 import BottomNav from '@/components/BottomNav';
 
 export const metadata: Metadata = {
-  title: 'RealBridge',
-  description: '진짜 인연을 연결하는 크로스보더 데이팅 앱',
+  title: '3rd Vibe | 써드 바이브',
+  description: '부산 직장인을 위한 프리미엄 소개팅 · 3회 만남 보장제',
   manifest: '/manifest.json',
 };
 

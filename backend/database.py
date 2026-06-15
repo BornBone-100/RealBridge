@@ -79,6 +79,14 @@ def get_admin_db() -> Client:
     return admin_db
 
 
+def get_admin_db_direct() -> Client:
+    """
+    APScheduler 등 FastAPI 의존성 주입이 없는 환경에서 직접 호출.
+    service_role 클라이언트를 반환 (lru_cache로 싱글턴 보장).
+    """
+    return _make_service_client()
+
+
 # ── 헬퍼: JWT에서 user_id 추출 ────────────────────────────────
 def get_user_id_from_token(token: str) -> str | None:
     """

@@ -1,35 +1,67 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { sendPhoneOtp, verifyPhoneOtp } from '@/lib/supabase';
 
 // ── 타입 ──────────────────────────────────────────────────
-type Step = 'country' | 'phone' | 'otp' | 'kyc' | 'profile';
-type Nationality = 'KR' | 'JP' | 'TW';
+type Step = 'phone' | 'otp' | 'basic' | 'survey' | 'done';
 
-interface FormData {
-  nationality: Nationality | null;
-  phone: string;
-  otp: string;
-  // 프로필
-  name: string;
-  age: string;
-  bio: string;
-  datingValues: string;
-  interests: string[];
-}
+const STEPS: Step[] = ['phone', 'otp', 'basic', 'survey', 'done'];
 
-// ── 상수 ──────────────────────────────────────────────────
-const COUNTRIES: { code: Nationality; flag: string; label: string; dialCode: string }[] = [
-  { code: 'KR', flag: '🇰🇷', label: '한국', dialCode: '+82' },
-  { code: 'JP', flag: '🇯🇵', label: '일본', dialCode: '+81' },
-  { code: 'TW', flag: '🇹🇼', label: '대만', dialCode: '+886' },
+const MBTI_LIST = [
+  'INTJ','INTP','ENTJ','ENTP',
+  'INFJ','INFP','ENFJ','ENFP',
+  'ISTJ','ISFJ','ESTJ','ESFJ',
+  'ISTP','ISFP','ESTP','ESFP',
+] as const;
+
+const BUSAN_DATE_STYLES = [
+  '광안리 카페투어 ☕', '해운대 해변 산책 🌊', '서면 맛집 탐방 🍜',
+  '감천문화마을 데이트 🎨', '남포동 영화 데이트 🎬', '이기대 트레킹 🥾',
+  '흰여울 문화마을 구경 🏘️', '부산 야경 드라이브 🚗', '기장 카페거리 🌿',
+  '자갈치 시장 투어 🐟',
 ];
 
-const ALL_INTERESTS = ['여행', '커피', '음악', '요리', '영화', '독서', '게임', '스포츠', '사진', '드라마', 'K-pop', '맛집'];
+const HOBBIES = [
+  '여행', '커피', '독서', '영화', '요리', '운동', '음악', '사진',
+  '게임', '등산', '캠핑', '전시회', '야구 관람', '드라이브',
+];
 
-const STEPS: Step[] = ['country', 'phone', 'otp', 'kyc', 'profile'];
+const PERSONALITY_TAGS = [
+  '활발한', '조용한', '계획적인', '즉흥적인', '유머있는', '진지한',
+  '다정한', '독립적인', '가족지향적', '커리어지향적',
+];
+
+const CONTACT_FREQ = [
+  '매일 연락해요', '하루 한두 번이 좋아요', '바쁠 땐 이틀에 한 번도 괜찮아요',
+  '자유롭게, 연락이 와야 답해요',
+];
+
+const BUSAN_DISTRICTS = [
+  '해운대구', '수영구', '남구', '부산진구', '동래구',
+  '연제구', '금정구', '사하구', '서구', '중구',
+];
+
+interface FormData {
+  phone: string;
+  otp: string;
+  name: string;
+  birthYear: string;
+  gender: 'male' | 'female' | '';
+  occupation: string;
+  companyName: string;
+  mbti: string;
+  personalityTags: string[];
+  hobbies: string[];
+  dateStyles: string[];
+  contactFreq: string;
+  relationshipGoal: string;
+  busanDistrict: string;
+  selfIntro: string;
+}
 
 // ── 진행 바 ───────────────────────────────────────────────
 function ProgressBar({ current }: { current: Step }) {
@@ -37,545 +69,398 @@ function ProgressBar({ current }: { current: Step }) {
   const pct = Math.round(((idx + 1) / STEPS.length) * 100);
   return (
     <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-      <div
-        className="h-full bg-[#0f0f0f] rounded-full transition-all duration-500"
-        style={{ width: `${pct}%` }}
-      />
+      <div className="h-full bg-[#0f0f0f] rounded-full transition-all duration-500"
+        style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-// ── 국가 선택 ─────────────────────────────────────────────
-function StepCountry({ onNext, form, setForm }: {
-  onNext: () => void;
-  form: FormData;
-  setForm: React.Dispatch<React.SetStateAction<FormData>>;
-}) {
-  return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">어느 나라에서 오셨나요?</h2>
-      <p className="text-sm text-gray-400 mb-8">본인 국적을 선택해 주세요</p>
-
-      <div className="flex flex-col gap-3 mb-8">
-        {COUNTRIES.map((c) => (
-          <button
-            key={c.code}
-            onClick={() => setForm((f) => ({ ...f, nationality: c.code }))}
-            className={`flex items-center gap-4 px-5 py-4 rounded-2xl border-[1.5px] transition-all active:scale-[0.98]
-              ${form.nationality === c.code
-                ? 'border-[#0f0f0f] bg-[#0f0f0f]'
-                : 'border-gray-100 bg-gray-50'}`}
-          >
-            <span className="text-3xl">{c.flag}</span>
-            <div className="text-left">
-              <p className={`text-sm font-medium ${form.nationality === c.code ? 'text-white' : 'text-gray-900'}`}>
-                {c.label}
-              </p>
-              <p className={`text-xs ${form.nationality === c.code ? 'text-white/60' : 'text-gray-400'}`}>
-                {c.dialCode}
-              </p>
-            </div>
-            {form.nationality === c.code && (
-              <div className="ml-auto">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <button
-        onClick={onNext}
-        disabled={!form.nationality}
-        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8"
-      >
-        계속하기
-      </button>
-    </div>
-  );
-}
-
-// ── E.164 포맷 변환 ───────────────────────────────────────
-function toE164(dialCode: string, phone: string): string {
+// ── E.164 변환 ────────────────────────────────────────────
+function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '').replace(/^0/, '');
-  return `${dialCode}${digits}`;
+  return `+82${digits}`;
 }
 
-// ── 전화번호 입력 ─────────────────────────────────────────
-function StepPhone({ onNext, form, setForm }: {
-  onNext: (e164: string) => void;
+// ── STEP 1: 전화번호 ──────────────────────────────────────
+function StepPhone({ form, setForm, onNext }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
+  onNext: (e164: string) => void;
 }) {
-  const country = COUNTRIES.find((c) => c.code === form.nationality)!;
-  const isValid = form.phone.replace(/\D/g, '').length >= 9;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isValid = form.phone.replace(/\D/g, '').length >= 9;
 
   const handleSend = async () => {
     setError('');
     setLoading(true);
-    const e164 = toE164(country.dialCode, form.phone);
-    const { error: otpError } = await sendPhoneOtp(e164);
+    const e164 = toE164(form.phone);
+    const { error: err } = await sendPhoneOtp(e164);
     setLoading(false);
-    if (otpError) {
-      setError(otpError.message || 'SMS 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-      return;
-    }
+    if (err) { setError(err.message || 'SMS 발송 실패. 잠시 후 다시 시도해 주세요.'); return; }
     onNext(e164);
   };
 
   return (
     <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">전화번호를 입력해 주세요</h2>
-      <p className="text-sm text-gray-400 mb-8">
-        본인 명의 번호만 사용 가능합니다. 가상 번호는 차단됩니다.
-      </p>
+      <div className="mb-8">
+        <p className="text-xs text-gray-400 mb-1">01 · 전화번호 인증</p>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2 tracking-tight">
+          안녕하세요! 👋<br />전화번호를 입력해 주세요
+        </h2>
+        <p className="text-sm text-gray-400">본인 명의 번호로만 가입 가능합니다</p>
+      </div>
 
       <div className="flex gap-2 mb-3">
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 flex-shrink-0">
-          <span className="text-xl">{country.flag}</span>
-          <span className="text-sm text-gray-700">{country.dialCode}</span>
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5">
+          <span>🇰🇷</span>
+          <span className="text-sm text-gray-600">+82</span>
         </div>
         <input
           type="tel"
           value={form.phone}
-          onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); setError(''); }}
-          placeholder="전화번호 입력"
-          className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm text-gray-900
-                     placeholder-gray-300 outline-none focus:border-gray-300 transition-colors"
+          onChange={(e) => { setForm(f => ({ ...f, phone: e.target.value })); setError(''); }}
+          placeholder="010-0000-0000"
+          className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
+                     outline-none focus:border-gray-300 transition-colors"
         />
       </div>
-
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+      <p className="text-xs text-gray-300 mb-8">인증 문자(SMS)가 발송됩니다</p>
 
-      <p className="text-xs text-gray-300 mb-8">
-        인증 문자(SMS)가 발송됩니다
-      </p>
-
-      <button
-        onClick={handleSend}
-        disabled={!isValid || loading}
+      <button onClick={handleSend} disabled={!isValid || loading}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8"
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            발송 중...
-          </span>
-        ) : '인증번호 받기'}
+                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8">
+        {loading ? '발송 중...' : '인증번호 받기'}
       </button>
     </div>
   );
 }
 
-// ── OTP 입력 ──────────────────────────────────────────────
-function StepOTP({ onNext, form, setForm, e164Phone }: {
-  onNext: () => void;
+// ── STEP 2: OTP ───────────────────────────────────────────
+function StepOTP({ form, setForm, e164Phone, onNext }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
   e164Phone: string;
+  onNext: () => void;
 }) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = form.otp.split('').concat(Array(6).fill('')).slice(0, 6);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(30);
-  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(30);
 
-  // 재발송 쿨다운 타이머
   useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(c => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [resendCooldown]);
+  }, [cooldown]);
 
   const handleDigit = (idx: number, val: string) => {
     const clean = val.replace(/\D/g, '').slice(-1);
-    const next = digits.slice();
-    next[idx] = clean;
-    setForm((f) => ({ ...f, otp: next.join('') }));
+    const next = digits.slice(); next[idx] = clean;
+    setForm(f => ({ ...f, otp: next.join('') }));
     setError('');
     if (clean && idx < 5) inputRefs.current[idx + 1]?.focus();
   };
 
-  const handleKey = (idx: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
-      inputRefs.current[idx - 1]?.focus();
-    }
-  };
-
-  const isValid = form.otp.replace(/\D/g, '').length === 6;
-
   const handleVerify = async () => {
-    setError('');
-    setLoading(true);
-    const { error: verifyError } = await verifyPhoneOtp(e164Phone, form.otp);
+    setError(''); setLoading(true);
+    const { error: err } = await verifyPhoneOtp(e164Phone, form.otp);
     setLoading(false);
-    if (verifyError) {
-      setError('인증번호가 올바르지 않습니다. 다시 확인해 주세요.');
-      setForm((f) => ({ ...f, otp: '' }));
+    if (err) {
+      setError('인증번호가 올바르지 않습니다.');
+      setForm(f => ({ ...f, otp: '' }));
       inputRefs.current[0]?.focus();
       return;
     }
     onNext();
   };
 
-  const handleResend = async () => {
-    setResending(true);
-    await sendPhoneOtp(e164Phone);
-    setResending(false);
-    setResendCooldown(30);
-    setForm((f) => ({ ...f, otp: '' }));
-    setError('');
-    inputRefs.current[0]?.focus();
-  };
-
   return (
     <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">인증번호를 입력해 주세요</h2>
-      <p className="text-sm text-gray-400 mb-8">
-        {e164Phone}으로 발송된 6자리 번호를 입력하세요
-      </p>
-
-      {/* OTP 입력 박스 */}
-      <div className="flex gap-2 justify-between mb-6">
-        {digits.map((d, i) => (
-          <input
-            key={i}
-            ref={(el) => { inputRefs.current[i] = el; }}
-            type="tel"
-            maxLength={1}
-            value={d}
-            onChange={(e) => handleDigit(i, e.target.value)}
-            onKeyDown={(e) => handleKey(i, e)}
-            className={`w-12 h-14 text-center text-xl font-medium rounded-2xl border-[1.5px] outline-none transition-colors
-              ${error ? 'border-red-300 bg-red-50' : d ? 'border-[#0f0f0f] text-gray-900' : 'border-gray-100 bg-gray-50 text-gray-900'}
-              focus:border-gray-400`}
-          />
-        ))}
+      <div className="mb-8">
+        <p className="text-xs text-gray-400 mb-1">01 · 전화번호 인증</p>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">인증번호를 입력해 주세요</h2>
+        <p className="text-sm text-gray-400">{e164Phone}로 발송된 6자리 번호</p>
       </div>
 
+      <div className="flex gap-2 justify-between mb-6">
+        {digits.map((d, i) => (
+          <input key={i} ref={el => { inputRefs.current[i] = el; }}
+            type="tel" maxLength={1} value={d}
+            onChange={e => handleDigit(i, e.target.value)}
+            onKeyDown={e => e.key === 'Backspace' && !d && i > 0 && inputRefs.current[i-1]?.focus()}
+            className={`w-12 h-14 text-center text-xl font-medium rounded-2xl border-[1.5px] outline-none
+              ${error ? 'border-red-300 bg-red-50' : d ? 'border-[#0f0f0f]' : 'border-gray-100 bg-gray-50'}
+              focus:border-gray-400 transition-colors`} />
+        ))}
+      </div>
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
       <p className="text-xs text-gray-400 mb-8">
-        {resendCooldown > 0 ? (
-          <span className="text-gray-300">재발송 가능: {resendCooldown}초 후</span>
-        ) : (
-          <button
-            onClick={handleResend}
-            disabled={resending}
-            className="underline text-gray-400 disabled:text-gray-300"
-          >
-            {resending ? '발송 중...' : '인증번호 재발송'}
-          </button>
-        )}
+        {cooldown > 0
+          ? <span className="text-gray-300">재발송 가능: {cooldown}초 후</span>
+          : <button onClick={async () => { await sendPhoneOtp(e164Phone); setCooldown(30); setForm(f => ({...f, otp:''})); }}
+              className="underline">인증번호 재발송</button>}
       </p>
 
-      <button
-        onClick={handleVerify}
-        disabled={!isValid || loading}
+      <button onClick={handleVerify} disabled={form.otp.length < 6 || loading}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8"
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            확인 중...
-          </span>
-        ) : '인증 완료'}
+                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8">
+        {loading ? '확인 중...' : '인증 완료'}
       </button>
     </div>
   );
 }
 
-// ── KYC (신분증 + 셀카) ───────────────────────────────────
-function StepKYC({ onNext }: { onNext: () => void }) {
-  const [kycStep, setKycStep] = useState<'intro' | 'id' | 'selfie' | 'done'>('intro');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [streaming, setStreaming] = useState(false);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setStreaming(true);
-      }
-    } catch {
-      alert('카메라 접근 권한이 필요합니다.');
-    }
-  };
-
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
-    stream?.getTracks().forEach((t) => t.stop());
-    setStreaming(false);
-  };
-
-  useEffect(() => {
-    if (kycStep === 'selfie') startCamera();
-    else if (streaming) stopCamera();
-  }, [kycStep]);
-
-  if (kycStep === 'intro') return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">본인 인증을 진행해요</h2>
-      <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-        RealBridge는 진짜 사람만 만날 수 있도록<br />
-        신분증과 실시간 셀카 인증을 요구합니다.
-      </p>
-
-      <div className="flex flex-col gap-3 mb-8">
-        {[
-          { emoji: '🪪', title: '신분증 촬영', desc: '여권 또는 주민등록증/운전면허증' },
-          { emoji: '🤳', title: '실시간 셀카', desc: '얼굴이 선명하게 보이는 셀카' },
-          { emoji: '✅', title: '심사 완료', desc: '보통 수 분 이내 완료' },
-        ].map((s) => (
-          <div key={s.title} className="flex items-center gap-4 bg-gray-50 rounded-2xl px-4 py-4">
-            <span className="text-2xl">{s.emoji}</span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">{s.title}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={() => setKycStep('id')}
-        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   active:scale-[0.98] transition-all mt-auto mb-8"
-      >
-        시작하기
-      </button>
-    </div>
-  );
-
-  if (kycStep === 'id') return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">신분증을 촬영해 주세요</h2>
-      <p className="text-sm text-gray-400 mb-6">여권 또는 신분증 전면이 선명하게 나와야 합니다</p>
-
-      {/* 신분증 촬영 플레이스홀더 */}
-      <div className="w-full aspect-[3/2] rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200
-                      flex flex-col items-center justify-center mb-6">
-        <span className="text-5xl mb-3">🪪</span>
-        <p className="text-sm text-gray-400">신분증 앞면을 맞춰주세요</p>
-        <p className="text-xs text-gray-300 mt-1">밝은 곳에서 촬영하면 더 잘 인식돼요</p>
-      </div>
-
-      <div className="flex gap-3 mt-auto mb-8">
-        <button
-          onClick={() => alert('카메라 촬영 기능은 SDK 연동 시 활성화됩니다')}
-          className="flex-1 bg-gray-50 text-gray-700 rounded-2xl py-3.5 text-sm font-medium border border-gray-100"
-        >
-          직접 촬영
-        </button>
-        <button
-          onClick={() => setKycStep('selfie')}
-          className="flex-1 bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium"
-        >
-          완료 →
-        </button>
-      </div>
-    </div>
-  );
-
-  if (kycStep === 'selfie') return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2 tracking-tight">셀카를 찍어주세요</h2>
-      <p className="text-sm text-gray-400 mb-4">타원 안에 얼굴을 맞추고 눈을 깜빡여 주세요</p>
-
-      {/* 카메라 뷰 */}
-      <div className="w-full aspect-[3/4] rounded-3xl bg-gray-900 overflow-hidden relative mb-6">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover scale-x-[-1]"
-        />
-        {/* 타원 오버레이 */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-48 h-60 rounded-full border-2 border-white/60" />
-        </div>
-        {/* 지시문 */}
-        <div className="absolute bottom-5 left-0 right-0 flex justify-center">
-          <div className="bg-black/40 backdrop-blur-sm text-white text-xs px-4 py-2 rounded-full">
-            눈을 2번 깜빡여 주세요
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-3 mt-auto mb-8">
-        <button
-          onClick={() => { stopCamera(); setKycStep('id'); }}
-          className="flex-1 bg-gray-50 text-gray-700 rounded-2xl py-3.5 text-sm font-medium border border-gray-100"
-        >
-          이전
-        </button>
-        <button
-          onClick={() => { stopCamera(); setKycStep('done'); setTimeout(onNext, 800); }}
-          className="flex-1 bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium"
-        >
-          촬영 완료
-        </button>
-      </div>
-    </div>
-  );
-
-  // done — loading
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center px-6 gap-5">
-      <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
-        <svg className="w-6 h-6 text-gray-300 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-      </div>
-      <p className="text-sm text-gray-500">본인 인증 처리 중...</p>
-    </div>
-  );
-}
-
-// ── 프로필 설정 ───────────────────────────────────────────
-function StepProfile({ onFinish, form, setForm }: {
-  onFinish: () => void;
+// ── STEP 3: 기본 정보 ─────────────────────────────────────
+function StepBasic({ form, setForm, onNext }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
+  onNext: () => void;
 }) {
-  const toggleInterest = (tag: string) => {
-    setForm((f) => ({
-      ...f,
-      interests: f.interests.includes(tag)
-        ? f.interests.filter((i) => i !== tag)
-        : f.interests.length < 5 ? [...f.interests, tag] : f.interests,
-    }));
-  };
-
-  const bioLen = form.bio.length;
-  const canSubmit = form.name.length >= 2 && form.age &&
-    parseInt(form.age) >= 18 && bioLen >= 100 && form.datingValues.length >= 20;
+  const canNext = form.name.trim() && form.birthYear && form.gender && form.occupation.trim();
 
   return (
     <div className="flex flex-col flex-1 px-6 pt-8 overflow-y-auto">
-      <h2 className="text-2xl font-medium text-gray-900 mb-1 tracking-tight">프로필을 만들어요</h2>
-      <p className="text-sm text-gray-400 mb-6">진정성 있는 소개글이 좋은 인연을 만들어요</p>
-
-      {/* 사진 업로드 */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-20 h-20 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200
-                        flex flex-col items-center justify-center flex-shrink-0">
-          <svg className="w-6 h-6 text-gray-300 mb-1" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-          </svg>
-          <span className="text-[10px] text-gray-300">사진 추가</span>
-        </div>
-        <p className="text-xs text-gray-400 leading-relaxed">
-          얼굴이 선명히 나온 사진을<br />2장 이상 등록해야 합니다.<br />
-          선글라스·마스크 착용 불가
-        </p>
+      <div className="mb-6">
+        <p className="text-xs text-gray-400 mb-1">02 · 기본 정보</p>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">기본 정보를 입력해 주세요</h2>
       </div>
 
-      {/* 이름 + 나이 */}
-      <div className="flex gap-3 mb-4">
-        <input
-          type="text"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="이름 (실명)"
-          className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
-                     placeholder-gray-300 outline-none focus:border-gray-300 transition-colors"
-        />
-        <input
-          type="number"
-          value={form.age}
-          onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))}
-          placeholder="나이"
-          min="18" max="99"
-          className="w-20 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
-                     placeholder-gray-300 outline-none focus:border-gray-300 transition-colors"
-        />
-      </div>
-
-      {/* 관심사 */}
+      {/* 이름 */}
       <div className="mb-4">
-        <p className="text-xs text-gray-400 mb-2">관심사 (최대 5개)</p>
+        <p className="text-xs text-gray-400 mb-1.5">이름</p>
+        <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="실명 입력" type="text"
+          className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
+                     outline-none focus:border-gray-300 transition-colors" />
+      </div>
+
+      {/* 출생 연도 */}
+      <div className="mb-4">
+        <p className="text-xs text-gray-400 mb-1.5">출생 연도</p>
+        <input value={form.birthYear} onChange={e => setForm(f => ({ ...f, birthYear: e.target.value }))}
+          placeholder="예: 1995" type="number" min="1970" max="2005"
+          className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
+                     outline-none focus:border-gray-300 transition-colors" />
+      </div>
+
+      {/* 성별 */}
+      <div className="mb-4">
+        <p className="text-xs text-gray-400 mb-1.5">성별</p>
+        <div className="flex gap-3">
+          {(['male', 'female'] as const).map(g => (
+            <button key={g} onClick={() => setForm(f => ({ ...f, gender: g }))}
+              className={`flex-1 py-3.5 rounded-2xl text-sm font-medium border-[1.5px] transition-all
+                ${form.gender === g ? 'border-[#0f0f0f] bg-[#0f0f0f] text-white' : 'border-gray-100 bg-gray-50 text-gray-700'}`}>
+              {g === 'male' ? '남성 👨' : '여성 👩'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 직업 */}
+      <div className="mb-4">
+        <p className="text-xs text-gray-400 mb-1.5">직업</p>
+        <input value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))}
+          placeholder="예: 마케터, 개발자, 간호사 등"
+          className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
+                     outline-none focus:border-gray-300 transition-colors" />
+      </div>
+
+      {/* 회사명 (선택) */}
+      <div className="mb-8">
+        <p className="text-xs text-gray-400 mb-1.5">회사/기관명 <span className="text-gray-300">(선택)</span></p>
+        <input value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+          placeholder="추후 서류 인증에서 확인됩니다"
+          className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
+                     outline-none focus:border-gray-300 transition-colors" />
+      </div>
+
+      <button onClick={onNext} disabled={!canNext}
+        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
+                   disabled:opacity-30 active:scale-[0.98] transition-all mb-8">
+        다음
+      </button>
+    </div>
+  );
+}
+
+// ── STEP 4: 가치관 설문 ───────────────────────────────────
+function StepSurvey({ form, setForm, onNext }: {
+  form: FormData;
+  setForm: React.Dispatch<React.SetStateAction<FormData>>;
+  onNext: () => void;
+}) {
+  const toggle = (key: 'personalityTags' | 'hobbies' | 'dateStyles', val: string, max: number) => {
+    setForm(f => {
+      const arr = f[key];
+      if (arr.includes(val)) return { ...f, [key]: arr.filter(v => v !== val) };
+      if (arr.length >= max) return f;
+      return { ...f, [key]: [...arr, val] };
+    });
+  };
+
+  const canNext = form.mbti && form.dateStyles.length >= 1 && form.contactFreq && form.selfIntro.length >= 50;
+
+  return (
+    <div className="flex flex-col flex-1 px-6 pt-8 overflow-y-auto">
+      <div className="mb-6">
+        <p className="text-xs text-gray-400 mb-1">03 · 가치관 & 취향</p>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">나를 소개해 주세요</h2>
+        <p className="text-xs text-gray-400">매칭 정확도를 높이는 설문입니다</p>
+      </div>
+
+      {/* MBTI */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">MBTI</p>
         <div className="flex flex-wrap gap-2">
-          {ALL_INTERESTS.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => toggleInterest(tag)}
+          {MBTI_LIST.map(m => (
+            <button key={m} onClick={() => setForm(f => ({ ...f, mbti: m }))}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors
-                ${form.interests.includes(tag)
-                  ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]'
-                  : 'bg-white text-gray-500 border-gray-200'}`}
-            >
-              {tag}
+                ${form.mbti === m ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 성격 */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">성격 <span className="text-gray-300">(최대 3개)</span></p>
+        <div className="flex flex-wrap gap-2">
+          {PERSONALITY_TAGS.map(t => (
+            <button key={t} onClick={() => toggle('personalityTags', t, 3)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors
+                ${form.personalityTags.includes(t) ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 취미 */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">취미 <span className="text-gray-300">(최대 5개)</span></p>
+        <div className="flex flex-wrap gap-2">
+          {HOBBIES.map(h => (
+            <button key={h} onClick={() => toggle('hobbies', h, 5)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors
+                ${form.hobbies.includes(h) ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {h}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 부산 데이트 스타일 */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">부산 데이트 스타일 <span className="text-gray-300">(최대 3개)</span></p>
+        <div className="flex flex-wrap gap-2">
+          {BUSAN_DATE_STYLES.map(s => (
+            <button key={s} onClick={() => toggle('dateStyles', s, 3)}
+              className={`text-xs px-3 py-2 rounded-2xl border transition-colors
+                ${form.dateStyles.includes(s) ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 주로 활동하는 구 */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">주로 활동하는 구</p>
+        <div className="flex flex-wrap gap-2">
+          {BUSAN_DISTRICTS.map(d => (
+            <button key={d} onClick={() => setForm(f => ({ ...f, busanDistrict: d }))}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors
+                ${form.busanDistrict === d ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 연락 빈도 */}
+      <div className="mb-5">
+        <p className="text-xs text-gray-400 mb-2">선호 연락 빈도</p>
+        <div className="flex flex-col gap-2">
+          {CONTACT_FREQ.map(c => (
+            <button key={c} onClick={() => setForm(f => ({ ...f, contactFreq: c }))}
+              className={`text-xs px-4 py-3 rounded-xl border text-left transition-colors
+                ${form.contactFreq === c ? 'bg-[#0f0f0f] text-white border-[#0f0f0f]' : 'bg-white text-gray-600 border-gray-100'}`}>
+              {c}
             </button>
           ))}
         </div>
       </div>
 
       {/* 자기소개 */}
-      <div className="mb-4">
+      <div className="mb-8">
         <div className="flex items-center justify-between mb-1.5">
           <p className="text-xs text-gray-400">자기소개</p>
-          <p className={`text-xs ${bioLen >= 100 ? 'text-green-500' : 'text-gray-300'}`}>
-            {bioLen}/100+
+          <p className={`text-xs ${form.selfIntro.length >= 50 ? 'text-green-500' : 'text-gray-300'}`}>
+            {form.selfIntro.length}/50+
           </p>
         </div>
-        <textarea
-          value={form.bio}
-          onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
-          placeholder="본인을 자유롭게 소개해 주세요. 최소 100자 이상 작성해야 합니다."
+        <textarea value={form.selfIntro}
+          onChange={e => setForm(f => ({ ...f, selfIntro: e.target.value }))}
+          placeholder="나를 자유롭게 소개해 주세요. 부산에서의 일상이나 취미 이야기도 좋아요 😊"
           rows={4}
           className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
-                     placeholder-gray-300 outline-none focus:border-gray-300 transition-colors resize-none"
-        />
-        {/* 진행 바 */}
+                     outline-none focus:border-gray-300 resize-none transition-colors" />
         <div className="w-full h-1 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${bioLen >= 100 ? 'bg-green-400' : 'bg-gray-300'}`}
-            style={{ width: `${Math.min((bioLen / 100) * 100, 100)}%` }}
-          />
+          <div className={`h-full rounded-full transition-all ${form.selfIntro.length >= 50 ? 'bg-green-400' : 'bg-gray-300'}`}
+            style={{ width: `${Math.min((form.selfIntro.length / 50) * 100, 100)}%` }} />
         </div>
       </div>
 
-      {/* 연애관 */}
-      <div className="mb-8">
-        <p className="text-xs text-gray-400 mb-1.5">연애관 / 바라는 미래</p>
-        <textarea
-          value={form.datingValues}
-          onChange={(e) => setForm((f) => ({ ...f, datingValues: e.target.value }))}
-          placeholder="장거리 연애에 대한 생각, 바라는 관계 등을 적어주세요"
-          rows={3}
-          className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
-                     placeholder-gray-300 outline-none focus:border-gray-300 transition-colors resize-none"
-        />
+      <button onClick={onNext} disabled={!canNext}
+        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
+                   disabled:opacity-30 active:scale-[0.98] transition-all mb-8">
+        가입 완료 🎉
+      </button>
+    </div>
+  );
+}
+
+// ── STEP 5: 완료 화면 ─────────────────────────────────────
+function StepDone({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="flex flex-col flex-1 items-center justify-center px-6 text-center">
+      <div className="text-5xl mb-5">🎉</div>
+      <h2 className="text-2xl font-semibold text-gray-900 mb-3">가입 완료!</h2>
+      <p className="text-sm text-gray-500 leading-relaxed mb-8">
+        다음 단계로 <strong>직장 인증 서류</strong>를 제출하고<br />
+        <strong>보증금 5만원</strong>을 결제하면<br />
+        매칭이 시작됩니다 ✨
+      </p>
+
+      <div className="w-full bg-gray-50 rounded-2xl p-4 mb-8 text-left">
+        {[
+          { step: '1', label: '서류 인증 제출', sub: '직장 이메일 · 명함 · 소득 증빙(선택)', done: false },
+          { step: '2', label: '관리자 승인', sub: '영업일 1~2일 소요', done: false },
+          { step: '3', label: '보증금 결제', sub: '5만원 · 3회 만남 미달 시 전액 환불', done: false },
+          { step: '4', label: '매칭 시작!', sub: '3rd Vibe팀이 직접 큐레이션합니다', done: false },
+        ].map(s => (
+          <div key={s.step} className="flex items-start gap-3 mb-3 last:mb-0">
+            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
+              {s.step}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">{s.label}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <button
-        onClick={onFinish}
-        disabled={!canSubmit}
+      <button onClick={onContinue}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mb-8"
-      >
-        RealBridge 시작하기 🎉
+                   active:scale-[0.98] transition-all">
+        서류 인증 하러 가기 →
       </button>
     </div>
   );
@@ -584,17 +469,13 @@ function StepProfile({ onFinish, form, setForm }: {
 // ── 메인 온보딩 ───────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('country');
+  const [step, setStep] = useState<Step>('phone');
   const [e164Phone, setE164Phone] = useState('');
   const [form, setForm] = useState<FormData>({
-    nationality: null,
-    phone: '',
-    otp: '',
-    name: '',
-    age: '',
-    bio: '',
-    datingValues: '',
-    interests: [],
+    phone: '', otp: '',
+    name: '', birthYear: '', gender: '', occupation: '', companyName: '',
+    mbti: '', personalityTags: [], hobbies: [], dateStyles: [],
+    contactFreq: '', relationshipGoal: '', busanDistrict: '', selfIntro: '',
   });
 
   const next = () => {
@@ -608,43 +489,30 @@ export default function OnboardingPage() {
     else router.push('/');
   };
 
-  const finish = () => {
-    // TODO: 실제 API 호출 후 홈으로 이동
-    router.replace('/home');
-  };
-
   const STEP_LABELS: Record<Step, string> = {
-    country: '국가 선택',
-    phone: '전화번호',
-    otp: 'OTP 인증',
-    kyc: '본인 인증',
-    profile: '프로필',
+    phone: '전화번호', otp: 'OTP 인증', basic: '기본 정보', survey: '가치관', done: '완료',
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      {/* 상단 네비 */}
-      <div className="flex items-center gap-4 px-6 pt-14 pb-4">
-        <button onClick={back} className="w-8 h-8 flex items-center justify-center -ml-1">
-          <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <div className="flex-1">
-          <ProgressBar current={step} />
+      {step !== 'done' && (
+        <div className="flex items-center gap-4 px-6 pt-14 pb-4">
+          <button onClick={back} className="w-8 h-8 flex items-center justify-center -ml-1">
+            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <div className="flex-1"><ProgressBar current={step} /></div>
+          <span className="text-xs text-gray-300 w-14 text-right">{STEP_LABELS[step]}</span>
         </div>
-        <span className="text-xs text-gray-300 flex-shrink-0 w-16 text-right">
-          {STEP_LABELS[step]}
-        </span>
-      </div>
+      )}
 
-      {/* 단계별 컨텐츠 */}
-      {step === 'country' && <StepCountry onNext={next} form={form} setForm={setForm} />}
-      {step === 'phone'   && <StepPhone   onNext={(e164) => { setE164Phone(e164); next(); }} form={form} setForm={setForm} />}
-      {step === 'otp'     && <StepOTP     onNext={next} form={form} setForm={setForm} e164Phone={e164Phone} />}
-      {step === 'kyc'     && <StepKYC     onNext={next} />}
-      {step === 'profile' && <StepProfile onFinish={finish} form={form} setForm={setForm} />}
+      {step === 'phone'  && <StepPhone  form={form} setForm={setForm} onNext={(e164) => { setE164Phone(e164); next(); }} />}
+      {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={next} />}
+      {step === 'basic'  && <StepBasic  form={form} setForm={setForm} onNext={next} />}
+      {step === 'survey' && <StepSurvey form={form} setForm={setForm} onNext={next} />}
+      {step === 'done'   && <StepDone   onContinue={() => router.push('/verify-docs')} />}
     </div>
   );
 }
