@@ -71,7 +71,7 @@ function MatchLockBanner({ match, onGoToMatch }: { match: ActiveMatch; onGoToMat
 interface Quota {
   used: number;
   limit: number;
-  tier: 'basic' | 'premium';
+  tier: 'basic' | 'truenote' | 'staff';
   resetAt: string;
 }
 
