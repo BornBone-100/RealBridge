@@ -4,8 +4,9 @@ import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedView from '@/components/ProtectedView';
 import LikeQuota from '@/components/LikeQuota';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { getClient } from '@/lib/supabase';
 
-const CURRENT_USER_ID = 'user_abc123';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 // ── 활성 매치 잠금 상태 타입 ─────────────────────────────────
@@ -67,8 +68,12 @@ function MatchLockBanner({ match, onGoToMatch }: { match: ActiveMatch; onGoToMat
   );
 }
 
-// Mock 좋아요 할당량 (실제: /api/safety/quota/:userId 에서 fetch)
-const MOCK_QUOTA = { used: 3, limit: 5, tier: 'basic' as const, resetAt: new Date(Date.now() + 8 * 3600_000).toISOString() };
+interface Quota {
+  used: number;
+  limit: number;
+  tier: 'basic' | 'premium';
+  resetAt: string;
+}
 
 // ── 타입 ─────────────────────────────────────────────────
 interface Profile {
@@ -192,6 +197,7 @@ function CompatRow({ icon, label, value }: { icon: React.ReactNode; label: strin
 // ── 메인: 홈 페이지 ──────────────────────────────────────
 export default function HomePage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useCurrentUser();
   const scrollRef = useRef<HTMLDivElement>(null);
   const layer1Ref = useRef<HTMLDivElement>(null);
   const layer2Ref = useRef<HTMLDivElement>(null);
@@ -203,26 +209,57 @@ export default function HomePage() {
   const [passed, setPassed] = useState<Set<string>>(new Set());
   const [likeAnim, setLikeAnim] = useState(false);
 
+  // ── Quota ────────────────────────────────────────────
+  const [quota, setQuota] = useState<Quota>({
+    used: 0, limit: 5, tier: 'basic',
+    resetAt: new Date(Date.now() + 8 * 3600_000).toISOString(),
+  });
+
   // ── Exclusive Match Lock ──────────────────────────────
   const [activeMatch, setActiveMatch] = useState<ActiveMatch | null>(null);
   const [lockLoading, setLockLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading || !user) {
+      if (!authLoading) setLockLoading(false);
+      return;
+    }
+
     const checkLock = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/matching/lock-status/${CURRENT_USER_ID}`);
+        const res = await fetch(`${API_BASE}/api/matching/lock-status/${user.id}`);
         if (res.ok) {
           const data = await res.json();
           if (data.locked) setActiveMatch(data.match);
         }
       } catch {
-        // 서버 미연결 시 무시 (개발 환경)
+        // 서버 미연결 시 무시
       } finally {
         setLockLoading(false);
       }
     };
+
+    // 좋아요 할당량 조회
+    const loadQuota = async () => {
+      const supabase = getClient();
+      const { data } = await supabase
+        .from('like_quotas')
+        .select('used, daily_limit, reset_at')
+        .eq('user_id', user.id)
+        .single();
+      if (data) {
+        setQuota({
+          used: data.used ?? 0,
+          limit: data.daily_limit ?? 5,
+          tier: 'basic',
+          resetAt: data.reset_at ?? new Date(Date.now() + 8 * 3600_000).toISOString(),
+        });
+      }
+    };
+
     checkLock();
-  }, []);
+    loadQuota();
+  }, [user, authLoading]);
 
   const profile = PROFILES.filter(
     (p) => !liked.has(p.id) && !passed.has(p.id)
@@ -272,7 +309,7 @@ export default function HomePage() {
   };
 
   // 로딩 중
-  if (lockLoading) {
+  if (authLoading || lockLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
         <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
@@ -327,7 +364,7 @@ export default function HomePage() {
         <span className="text-lg font-medium text-gray-900 tracking-tight">탐색</span>
         <div className="flex items-center gap-2">
           {/* 잔여 좋아요 미니 뱃지 */}
-          <LikeQuota {...MOCK_QUOTA} compact onUpgrade={() => router.push('/subscription')} />
+          <LikeQuota {...quota} compact onUpgrade={() => router.push('/subscription')} />
           <button onClick={() => router.push('/matches')} className="relative">
           <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round"
@@ -347,7 +384,7 @@ export default function HomePage() {
         {/* ── LAYER 1: 히어로 ──────────────────────────── */}
         <div ref={layer1Ref} className="relative">
           {/* 배경 그라디언트 + 워터마크 */}
-          <ProtectedView userId={CURRENT_USER_ID} watermarkOpacity={0.1}>
+          <ProtectedView userId={user?.id ?? ''} watermarkOpacity={0.1}>
           <div
             className="w-full h-[70vh] min-h-[500px] flex flex-col justify-end px-6 pb-8 relative overflow-hidden"
             style={{ background: `linear-gradient(160deg, ${profile.gradientFrom} 0%, ${profile.gradientTo} 100%)` }}

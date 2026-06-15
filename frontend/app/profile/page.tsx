@@ -1,31 +1,61 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-
-const MOCK_ME = {
-  name: '김민준',
-  age: 27,
-  flag: '🇰🇷',
-  city: '서울',
-  job: '소프트웨어 엔지니어',
-  bio: '일본과 대만 문화에 관심이 많아요. 여행을 즐기고 새로운 음식을 탐험하는 걸 좋아합니다.',
-  interests: ['여행', '카페', '음악', '요리', '독서'],
-  isTruenote: true,
-  gradientFrom: '#dbeafe',
-  gradientTo: '#ede9fe',
-};
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { signOut } from '@/lib/supabase';
 
 const MENU_ITEMS = [
   { icon: '🔔', label: '알림 설정' },
-  { icon: '🌐', label: '언어 설정', sub: '한국어' },
   { icon: '🔒', label: '개인정보 보호' },
   { icon: '💳', label: '구독 관리', sub: 'TrueNote', href: '/subscription' },
   { icon: '📋', label: '이용약관' },
   { icon: '🛡️', label: '안전 가이드' },
 ];
 
+const GRADIENTS = [
+  { from: '#dbeafe', to: '#ede9fe' },
+  { from: '#d1fae5', to: '#cffafe' },
+  { from: '#fce7f3', to: '#fef3c7' },
+];
+
 export default function ProfilePage() {
   const router = useRouter();
+  const { user, profile, loading } = useCurrentUser();
+
+  const age = profile?.birth_year ? new Date().getFullYear() - profile.birth_year : null;
+  const gradient = GRADIENTS[0];
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4">
+        <p className="text-base font-medium text-gray-900">로그인이 필요합니다</p>
+        <button onClick={() => router.push('/onboarding')}
+          className="bg-[#0f0f0f] text-white px-6 py-3 rounded-full text-sm font-medium">
+          가입/로그인
+        </button>
+      </div>
+    );
+  }
+
+  const displayName = profile?.name ?? '이름 없음';
+  const displayJob = profile?.occupation ?? '';
+  const displayDistrict = profile?.district ? `부산 ${profile.district}` : '부산';
+  const displayBio = profile?.bio ?? '자기소개를 작성해 주세요.';
+  const interests = profile?.hobbies ?? [];
+  const isVerified = profile?.verification_status === 'approved';
 
   return (
     <div className="flex-1 flex flex-col bg-white min-h-screen">
@@ -45,10 +75,10 @@ export default function ProfilePage() {
         <div className="rounded-3xl overflow-hidden border border-gray-100">
           {/* 커버 그라디언트 */}
           <div
-            className="h-28 flex items-center justify-center text-6xl"
-            style={{ background: `linear-gradient(135deg, ${MOCK_ME.gradientFrom}, ${MOCK_ME.gradientTo})` }}
+            className="h-28 flex items-center justify-center text-5xl font-medium text-gray-600"
+            style={{ background: `linear-gradient(135deg, ${gradient.from}, ${gradient.to})` }}
           >
-            {MOCK_ME.flag}
+            {displayName.slice(0, 1)}
           </div>
 
           <div className="px-5 py-4">
@@ -56,46 +86,49 @@ export default function ProfilePage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-medium text-gray-900">
-                    {MOCK_ME.name}, {MOCK_ME.age}
+                    {displayName}{age ? `, ${age}` : ''}
                   </h2>
-                  {MOCK_ME.isTruenote && (
+                  {isVerified && (
                     <span className="bg-[#0f0f0f] text-white text-[9px] px-2 py-0.5 rounded-full">
-                      TrueNote ✓
+                      인증 ✓
+                    </span>
+                  )}
+                  {profile?.mbti && (
+                    <span className="bg-gray-100 text-gray-600 text-[9px] px-2 py-0.5 rounded-full">
+                      {profile.mbti}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-400 mt-0.5">{MOCK_ME.city} · {MOCK_ME.job}</p>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  {displayDistrict}{displayJob ? ` · ${displayJob}` : ''}
+                </p>
               </div>
             </div>
 
-            <p className="text-sm text-gray-600 leading-relaxed mb-3">{MOCK_ME.bio}</p>
+            <p className="text-sm text-gray-600 leading-relaxed mb-3">{displayBio}</p>
 
-            <div className="flex flex-wrap gap-1.5">
-              {MOCK_ME.interests.map((tag) => (
-                <span key={tag}
-                  className="text-xs bg-gray-50 text-gray-500 px-2.5 py-1 rounded-full">
-                  {tag}
-                </span>
-              ))}
-            </div>
+            {interests.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {interests.map((tag) => (
+                  <span key={tag}
+                    className="text-xs bg-gray-50 text-gray-500 px-2.5 py-1 rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 통계 */}
+      {/* 전화번호 표시 */}
       <div className="px-5 mb-5">
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: '받은 좋아요', value: '24' },
-            { label: '매칭', value: '3' },
-            { label: '프로필 조회', value: '156' },
-          ].map((stat) => (
-            <div key={stat.label}
-              className="bg-gray-50 rounded-2xl px-3 py-3.5 text-center">
-              <p className="text-xl font-medium text-gray-900 mb-0.5">{stat.value}</p>
-              <p className="text-[10px] text-gray-400">{stat.label}</p>
-            </div>
-          ))}
+        <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <span className="text-sm text-gray-500">📱</span>
+          <div>
+            <p className="text-xs text-gray-400">인증된 전화번호</p>
+            <p className="text-sm text-gray-700 mt-0.5">{user.phone ?? '-'}</p>
+          </div>
         </div>
       </div>
 
@@ -122,7 +155,9 @@ export default function ProfilePage() {
         </div>
 
         {/* 로그아웃 */}
-        <button className="w-full text-center text-sm text-gray-300 py-5 mt-2">
+        <button
+          onClick={handleSignOut}
+          className="w-full text-center text-sm text-gray-300 py-5 mt-2">
           로그아웃
         </button>
       </div>

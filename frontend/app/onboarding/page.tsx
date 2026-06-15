@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { sendPhoneOtp, verifyPhoneOtp } from '@/lib/supabase';
+import { sendPhoneOtp, verifyPhoneOtp, getClient } from '@/lib/supabase';
 
 // ── 타입 ──────────────────────────────────────────────────
 type Step = 'phone' | 'otp' | 'basic' | 'survey' | 'done';
@@ -292,7 +292,7 @@ function StepBasic({ form, setForm, onNext }: {
 function StepSurvey({ form, setForm, onNext }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
-  onNext: () => void;
+  onNext: () => Promise<void>;
 }) {
   const toggle = (key: 'personalityTags' | 'hobbies' | 'dateStyles', val: string, max: number) => {
     setForm(f => {
@@ -304,6 +304,8 @@ function StepSurvey({ form, setForm, onNext }: {
   };
 
   const canNext = form.mbti && form.dateStyles.length >= 1 && form.contactFreq && form.selfIntro.length >= 50;
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   return (
     <div className="flex flex-col flex-1 px-6 pt-8 overflow-y-auto">
@@ -417,10 +419,11 @@ function StepSurvey({ form, setForm, onNext }: {
         </div>
       </div>
 
-      <button onClick={onNext} disabled={!canNext}
+      {saveError && <p className="text-xs text-red-500 mb-3">{saveError}</p>}
+      <button onClick={() => { setSaving(true); onNext().finally(() => setSaving(false)); }} disabled={!canNext || saving}
         className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
                    disabled:opacity-30 active:scale-[0.98] transition-all mb-8">
-        가입 완료 🎉
+        {saving ? '저장 중...' : '가입 완료 🎉'}
       </button>
     </div>
   );
@@ -478,9 +481,35 @@ export default function OnboardingPage() {
     contactFreq: '', relationshipGoal: '', busanDistrict: '', selfIntro: '',
   });
 
-  const next = () => {
+  const next = async () => {
     const idx = STEPS.indexOf(step);
     if (idx < STEPS.length - 1) setStep(STEPS[idx + 1]);
+  };
+
+  const saveAndNext = async () => {
+    const supabase = getClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { next(); return; }
+
+    const birthYear = parseInt(form.birthYear, 10);
+    await supabase.from('users').upsert({
+      id: user.id,
+      phone: user.phone ?? '',
+      name: form.name.trim(),
+      birth_year: isNaN(birthYear) ? null : birthYear,
+      gender: form.gender || null,
+      occupation: form.occupation.trim() || null,
+      company_name: form.companyName.trim() || null,
+      district: form.busanDistrict || null,
+      mbti: form.mbti || null,
+      hobbies: form.hobbies.length ? form.hobbies : null,
+      date_styles: form.dateStyles.length ? form.dateStyles : null,
+      contact_freq: form.contactFreq || null,
+      bio: form.selfIntro.trim() || null,
+      is_active: true,
+    }, { onConflict: 'id' });
+
+    next();
   };
 
   const back = () => {
@@ -511,7 +540,7 @@ export default function OnboardingPage() {
       {step === 'phone'  && <StepPhone  form={form} setForm={setForm} onNext={(e164) => { setE164Phone(e164); next(); }} />}
       {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={next} />}
       {step === 'basic'  && <StepBasic  form={form} setForm={setForm} onNext={next} />}
-      {step === 'survey' && <StepSurvey form={form} setForm={setForm} onNext={next} />}
+      {step === 'survey' && <StepSurvey form={form} setForm={setForm} onNext={saveAndNext} />}
       {step === 'done'   && <StepDone   onContinue={() => router.push('/verify-docs')} />}
     </div>
   );

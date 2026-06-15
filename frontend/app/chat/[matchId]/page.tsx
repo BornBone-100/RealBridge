@@ -5,11 +5,10 @@ import { useRouter, useParams } from 'next/navigation';
 import ProtectedView from '@/components/ProtectedView';
 import { useTranslatedChat, type TranslatedMessage } from '@/hooks/useTranslatedChat';
 import SafetyMenu from '@/components/SafetyMenu';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { getClient } from '@/lib/supabase';
 
-const CURRENT_USER_ID  = 'user_abc123';
-const MY_NATIONALITY   = 'KR' as const;
-
-// ── 외부 앱 감지 (프론트 이중 방어) ──────────────────────────
+// ── 외부 앱 감지 ─────────────────────────────────────────────
 const EXTERNAL_PATTERNS: { app: string; regex: RegExp }[] = [
   { app: 'KakaoTalk', regex: /카카오톡?|카톡|kakao\s*talk|katalk/i },
   { app: 'LINE',      regex: /\bline\s*(id|아이디|계정)?\b|라인\s*(id|아이디|계정|으로|에서)/i },
@@ -28,36 +27,25 @@ function detectExternalApp(text: string): string | null {
   return null;
 }
 
-// ── 매치 정보 ────────────────────────────────────────────────
-const MATCH_INFO: Record<string, {
-  name: string; age: number; flag: string; nationality: 'KR' | 'JP' | 'TW';
-  city: string; isTruenote: boolean; gradientFrom: string; gradientTo: string;
-}> = {
-  match_001: { name: 'Yuki',  age: 26, flag: '🇯🇵', nationality: 'JP', city: '도쿄',   isTruenote: true,  gradientFrom: '#ede9fe', gradientTo: '#dbeafe' },
-  match_002: { name: '小雅',  age: 24, flag: '🇹🇼', nationality: 'TW', city: '타이베이', isTruenote: true,  gradientFrom: '#fef3c7', gradientTo: '#fde8d5' },
-  match_003: { name: 'Haruto', age: 29, flag: '🇯🇵', nationality: 'JP', city: '오사카', isTruenote: false, gradientFrom: '#d1fae5', gradientTo: '#cffafe' },
-};
+// ── 파트너 정보 타입 ─────────────────────────────────────────
+interface PartnerInfo {
+  id: string;
+  name: string;
+  age: number | null;
+  district: string | null;
+  mbti: string | null;
+  is_verified: boolean;
+  gradientFrom: string;
+  gradientTo: string;
+  topicContent: string | null;
+}
 
-// ── 대화 주제 (매칭 시 선택한 주제) ─────────────────────────
-const SELECTED_TOPIC = '여행 중에 가장 기억에 남는 식당이나 카페가 있나요?';
-
-// ── 아이스브레이커 칩 ────────────────────────────────────────
-const ICEBREAKERS: Record<'JP' | 'TW', { emoji: string; text: string }[]> = {
-  JP: [
-    { emoji: '🍜', text: '도쿄 현지인 맛집을 알려줄 수 있어요?' },
-    { emoji: '🌸', text: '일본에서 벚꽃 명소는 어디예요?' },
-    { emoji: '🎮', text: '일본에서 요즘 인기 있는 게임은 뭐예요?' },
-    { emoji: '🚆', text: '신칸센을 처음 타면 꼭 먹어야 할 에키벤이 있나요?' },
-    { emoji: '🏯', text: '교토랑 도쿄 중에 어디를 더 좋아해요?' },
-  ],
-  TW: [
-    { emoji: '🧋', text: '대만 버블티 원조 가게가 궁금해요!' },
-    { emoji: '🌙', text: '야시장에서 꼭 먹어야 할 메뉴 추천해 주세요!' },
-    { emoji: '🏖️', text: '대만에서 가장 좋아하는 여행지는 어디예요?' },
-    { emoji: '🥟', text: '딘타이펑 말고 대만 현지인이 자주 가는 식당은요?' },
-    { emoji: '🎉', text: '대만의 독특한 명절 문화가 궁금해요' },
-  ],
-};
+const GRADIENTS = [
+  { from: '#ede9fe', to: '#dbeafe' },
+  { from: '#fef3c7', to: '#fde8d5' },
+  { from: '#d1fae5', to: '#cffafe' },
+  { from: '#fce7f3', to: '#fef3c7' },
+];
 
 // ── 언어 라벨 ────────────────────────────────────────────────
 const LANG_LABEL: Record<string, string> = {
@@ -85,8 +73,6 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
   return (
     <div className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
       <div className={`max-w-[80%] flex flex-col gap-1.5 ${isMe ? 'items-end' : 'items-start'}`}>
-
-        {/* ── 원문 말풍선 ── */}
         <div
           className={`px-4 py-3 rounded-3xl text-sm leading-relaxed
             ${isMe
@@ -99,12 +85,10 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
           )}
         </div>
 
-        {/* ── 번역 말풍선 (수신 메시지만) ── */}
         {!isMe && msg.translated && (
           <>
             {showTranslation ? (
-              <div className="bg-white border border-gray-100 px-4 py-2.5 rounded-2xl rounded-tl-sm
-                              max-w-full shadow-sm">
+              <div className="bg-white border border-gray-100 px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-full shadow-sm">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor" strokeWidth={2}>
@@ -116,8 +100,6 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
                   </span>
                 </div>
                 <p className="text-sm text-gray-700 leading-relaxed">{msg.translated}</p>
-
-                {/* 은어 경고 */}
                 {msg.slangWarning && (
                   <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-amber-100">
                     <span className="text-amber-400 text-[10px] mt-0.5">⚠️</span>
@@ -126,8 +108,6 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
                 )}
               </div>
             ) : null}
-
-            {/* 번역 토글 버튼 */}
             <button
               onClick={onToggleTranslation}
               className="text-[11px] text-gray-300 flex items-center gap-1 hover:text-gray-400 transition-colors"
@@ -142,8 +122,6 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
           </>
         )}
       </div>
-
-      {/* 시간 */}
       <span className="text-[10px] text-gray-300 px-1">
         {new Date(msg.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
       </span>
@@ -196,7 +174,6 @@ function ChatLocked({ matchId, matchName, onUnlock }: {
       >
         주제 선택하기
       </button>
-      {/* dev */}
       <button onClick={onUnlock} className="text-xs text-gray-200 underline">
         개발용: 잠금 해제
       </button>
@@ -209,9 +186,12 @@ export default function ChatPage() {
   const router  = useRouter();
   const params  = useParams();
   const matchId = params.matchId as string;
-  const match   = MATCH_INFO[matchId] ?? MATCH_INFO['match_001'];
 
-  const [topicSelected,    setTopicSelected]    = useState(matchId === 'match_001');
+  const { user, loading: authLoading } = useCurrentUser();
+  const [partner, setPartner] = useState<PartnerInfo | null>(null);
+  const [loadingPartner, setLoadingPartner] = useState(true);
+
+  const [topicSelected,    setTopicSelected]    = useState(false);
   const [inputText,        setInputText]         = useState('');
   const [translationOpen,  setTranslationOpen]   = useState<Record<string, boolean>>({});
   const [icebreakersOpen,  setIcebreakersOpen]   = useState(true);
@@ -223,11 +203,76 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLInputElement>(null);
 
+  // 매치 정보 로딩
+  useEffect(() => {
+    if (authLoading || !user) return;
+
+    const loadMatch = async () => {
+      const supabase = getClient();
+
+      // 매치 정보 조회
+      const { data: matchRow } = await supabase
+        .from('matches')
+        .select('user_a_id, user_b_id, state')
+        .eq('id', matchId)
+        .single();
+
+      if (!matchRow) { setLoadingPartner(false); return; }
+
+      // 대화가 시작된 상태면 잠금 해제 (첫 메시지 있으면 오픈)
+      const { count: msgCount } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('match_id', matchId);
+      setTopicSelected((msgCount ?? 0) > 0 || matchRow.state === 'active');
+
+      // 파트너 ID
+      const partnerId = matchRow.user_a_id === user.id ? matchRow.user_b_id : matchRow.user_a_id;
+
+      // 파트너 프로필
+      const { data: pProfile } = await supabase
+        .from('users')
+        .select('id, name, birth_year, district, mbti, is_verified')
+        .eq('id', partnerId)
+        .single();
+
+      // 대화 주제 (icebreaker_cards에서 랜덤 1개)
+      let topicContent: string | null = null;
+      const { data: card } = await supabase
+        .from('icebreaker_cards')
+        .select('question')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      topicContent = card?.question ?? null;
+
+      const age = pProfile?.birth_year
+        ? new Date().getFullYear() - pProfile.birth_year
+        : null;
+
+      setPartner({
+        id: partnerId,
+        name: pProfile?.name ?? '상대방',
+        age,
+        district: pProfile?.district ?? null,
+        mbti: pProfile?.mbti ?? null,
+        is_verified: pProfile?.is_verified ?? false,
+        gradientFrom: GRADIENTS[0].from,
+        gradientTo: GRADIENTS[0].to,
+        topicContent,
+      });
+
+      setLoadingPartner(false);
+    };
+
+    loadMatch();
+  }, [matchId, user, authLoading]);
+
   // WebSocket 훅
   const { messages, status, sendMessage, sendTyping } = useTranslatedChat({
     roomId:      matchId,
-    userId:      CURRENT_USER_ID,
-    nationality: MY_NATIONALITY,
+    userId:      user?.id ?? '',
+    nationality: 'KR',
   });
 
   // 스크롤 자동 이동
@@ -252,7 +297,6 @@ export default function ChatPage() {
     const text = inputText.trim();
     if (!text) return;
 
-    // 외부 앱 감지
     const detected = detectExternalApp(text);
     if (detected) {
       if (warningCount >= 1) {
@@ -280,14 +324,33 @@ export default function ChatPage() {
     setTranslationOpen((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
   };
 
-  // 아이스브레이커 칩 선택
   const handleIcebreaker = (text: string) => {
     setInputText(text);
     setIcebreakersOpen(false);
     inputRef.current?.focus();
   };
 
-  const icebreakers = ICEBREAKERS[match.nationality as 'JP' | 'TW'] ?? [];
+  // 로딩
+  if (authLoading || loadingPartner) {
+    return (
+      <div className="flex flex-col bg-white min-h-screen items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+      </div>
+    );
+  }
+
+  // 파트너 없음 (잘못된 matchId 등)
+  if (!partner || !user) {
+    return (
+      <div className="flex flex-col bg-white min-h-screen items-center justify-center px-8 text-center gap-4">
+        <p className="text-base font-medium text-gray-900">매치를 찾을 수 없어요</p>
+        <button onClick={() => router.replace('/matches')}
+          className="bg-[#0f0f0f] text-white rounded-2xl px-6 py-3 text-sm font-medium">
+          매칭 목록으로
+        </button>
+      </div>
+    );
+  }
 
   // ── 잠금 화면 ──────────────────────────────────────────────
   if (!topicSelected) {
@@ -300,16 +363,20 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl"
-            style={{ background: `linear-gradient(135deg, ${match.gradientFrom}, ${match.gradientTo})` }}>
-            {match.flag}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+            style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
+          >
+            {partner.name.slice(0, 1)}
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">{match.name}, {match.age}</p>
-            <p className="text-xs text-gray-400">{match.city}</p>
+            <p className="text-sm font-medium text-gray-900">
+              {partner.name}{partner.age ? `, ${partner.age}` : ''}
+            </p>
+            {partner.district && <p className="text-xs text-gray-400">부산 {partner.district}</p>}
           </div>
         </div>
-        <ChatLocked matchId={matchId} matchName={match.name} onUnlock={() => setTopicSelected(true)} />
+        <ChatLocked matchId={matchId} matchName={partner.name} onUnlock={() => setTopicSelected(true)} />
       </div>
     );
   }
@@ -347,39 +414,50 @@ export default function ChatPage() {
           </svg>
         </button>
         <div className="relative">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl"
-            style={{ background: `linear-gradient(135deg, ${match.gradientFrom}, ${match.gradientTo})` }}>
-            {match.flag}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+            style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
+          >
+            {partner.name.slice(0, 1)}
           </div>
-          {/* 온라인 표시 */}
           {status.connected && (
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-white" />
           )}
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium text-gray-900">{match.name}, {match.age}</p>
-            {match.isTruenote && (
+            <p className="text-sm font-medium text-gray-900">
+              {partner.name}{partner.age ? `, ${partner.age}` : ''}
+            </p>
+            {partner.is_verified && (
               <span className="bg-[#0f0f0f] text-white text-[8px] px-1.5 py-0.5 rounded-full">✓</span>
+            )}
+            {partner.mbti && (
+              <span className="bg-gray-100 text-gray-500 text-[8px] px-1.5 py-0.5 rounded-full">
+                {partner.mbti}
+              </span>
             )}
           </div>
           <p className="text-xs text-gray-400">
             {status.connected ? '온라인' : '연결 중…'}
+            {partner.district ? ` · 부산 ${partner.district}` : ''}
           </p>
         </div>
         <SafetyMenu
-          targetUserId={match.name}
-          targetName={match.name}
+          targetUserId={partner.id}
+          targetName={partner.name}
           matchId={matchId}
           onBlockSuccess={() => router.replace('/matches')}
         />
       </div>
 
       {/* 대화 주제 배너 */}
-      <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-        <span className="text-base flex-shrink-0">☕</span>
-        <p className="text-xs text-gray-600 leading-snug line-clamp-1 flex-1">{SELECTED_TOPIC}</p>
-      </div>
+      {partner.topicContent && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+          <span className="text-base flex-shrink-0">☕</span>
+          <p className="text-xs text-gray-600 leading-snug line-clamp-1 flex-1">{partner.topicContent}</p>
+        </div>
+      )}
 
       {/* 경고 배너 */}
       {warningCount > 0 && !warningModal && (
@@ -394,20 +472,17 @@ export default function ChatPage() {
       )}
 
       {/* 메시지 영역 */}
-      <ProtectedView userId={CURRENT_USER_ID} className="flex-1 overflow-hidden" watermarkOpacity={0.09}>
+      <ProtectedView userId={user.id} className="flex-1 overflow-hidden" watermarkOpacity={0.09}>
         <div className="h-full overflow-y-auto px-4 py-4 flex flex-col gap-3">
-
-          {/* 채팅 규칙 안내 */}
           <div className="flex justify-center">
             <div className="bg-gray-50 rounded-2xl px-4 py-3 max-w-[85%]">
               <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-                🌏 메시지는 자동으로 상대방 언어로 번역됩니다<br />
+                💌 메시지는 자동으로 번역됩니다<br />
                 🔒 외부 SNS·연락처 공유 시 계정이 삭제됩니다
               </p>
             </div>
           </div>
 
-          {/* 메시지 목록 */}
           {messages.map((msg) => (
             <MessageBubble
               key={msg.id}
@@ -417,36 +492,10 @@ export default function ChatPage() {
             />
           ))}
 
-          {/* 타이핑 인디케이터 */}
           {status.otherTyping && <TypingIndicator />}
-
           <div ref={messagesEndRef} />
         </div>
       </ProtectedView>
-
-      {/* ── 아이스브레이커 칩 ─────────────────────────────────── */}
-      {icebreakers.length > 0 && icebreakersOpen && messages.filter((m) => m.type === 'message').length < 3 && (
-        <div className="px-4 pb-2 pt-1 border-t border-gray-50">
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[10px] text-gray-300">💬</span>
-            <p className="text-[10px] text-gray-300 uppercase tracking-wide">대화 시작 질문</p>
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {icebreakers.map((chip) => (
-              <button
-                key={chip.text}
-                onClick={() => handleIcebreaker(chip.text)}
-                className="flex-shrink-0 flex items-center gap-1.5 text-xs text-gray-600
-                           bg-gray-50 border border-gray-100 rounded-full px-3.5 py-2
-                           active:bg-gray-100 transition-colors whitespace-nowrap"
-              >
-                <span>{chip.emoji}</span>
-                <span>{chip.text}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 입력창 */}
       <div className="border-t border-gray-100 px-4 py-3 bg-white">
@@ -461,13 +510,9 @@ export default function ChatPage() {
                 sendTyping();
               }}
               onKeyDown={handleKeyDown}
-              placeholder={`${match.name}에게 메시지 보내기…`}
+              placeholder={`${partner.name}에게 메시지 보내기…`}
               className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-300 outline-none"
             />
-            {/* 번역 언어 표시 */}
-            <span className="text-[10px] text-gray-300 flex-shrink-0">
-              {match.nationality === 'JP' ? '→ 日本語' : match.nationality === 'TW' ? '→ 中文' : '→ 한국어'}
-            </span>
           </div>
 
           <button

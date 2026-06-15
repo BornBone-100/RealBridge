@@ -1,157 +1,265 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClient } from '@/lib/supabase';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface Match {
   id: string;
-  name: string;
-  age: number;
-  flag: string;
-  city: string;
-  isTruenote: boolean;
-  lastMessage: string;
-  lastTime: string;
+  partner_id: string;
+  partner_name: string;
+  partner_birth_year: number | null;
+  partner_mbti: string | null;
+  partner_district: string | null;
+  state: string;
+  last_message: string | null;
+  last_message_at: string | null;
   unread: number;
-  gradientFrom: string;
-  gradientTo: string;
 }
 
-const MOCK_MATCHES: Match[] = [
-  {
-    id: 'match_001',
-    name: 'Yuki', age: 26, flag: '🇯🇵', city: '도쿄',
-    isTruenote: true,
-    lastMessage: '안녕하세요! 반가워요 😊',
-    lastTime: '방금',
-    unread: 2,
-    gradientFrom: '#e8d5f5', gradientTo: '#d5e8f5',
-  },
-  {
-    id: 'match_002',
-    name: '小雅', age: 24, flag: '🇹🇼', city: '타이베이',
-    isTruenote: true,
-    lastMessage: '한국 음식 중에 뭘 제일 좋아해요?',
-    lastTime: '1시간',
-    unread: 0,
-    gradientFrom: '#fde8d5', gradientTo: '#f5e8d5',
-  },
-  {
-    id: 'match_003',
-    name: 'Haruto', age: 29, flag: '🇯🇵', city: '오사카',
-    isTruenote: false,
-    lastMessage: '주말에 뭐 하세요?',
-    lastTime: '어제',
-    unread: 1,
-    gradientFrom: '#d5f5e8', gradientTo: '#d5f0f5',
-  },
+function partnerAge(birthYear: number | null): number | null {
+  if (!birthYear) return null;
+  return new Date().getFullYear() - birthYear;
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '방금';
+  if (mins < 60) return `${mins}분`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}시간`;
+  return `${Math.floor(hrs / 24)}일`;
+}
+
+const GRADIENTS = [
+  { from: '#dbeafe', to: '#ede9fe' },
+  { from: '#d1fae5', to: '#cffafe' },
+  { from: '#fce7f3', to: '#fef3c7' },
+  { from: '#fef3c7', to: '#fde8d5' },
 ];
 
 export default function MatchesPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useCurrentUser();
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+
+    const loadMatches = async () => {
+      const supabase = getClient();
+
+      // 내가 포함된 매치 목록
+      const { data: matchRows } = await supabase
+        .from('matches')
+        .select('id, user_a_id, user_b_id, state, matched_at')
+        .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+        .in('state', ['waiting', 'active'])
+        .order('matched_at', { ascending: false });
+
+      if (!matchRows || matchRows.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // 파트너 ID 목록
+      const partnerIds = matchRows.map(m =>
+        m.user_a_id === user.id ? m.user_b_id : m.user_a_id
+      );
+
+      // 파트너 프로필 일괄 조회
+      const { data: partnerProfiles } = await supabase
+        .from('users')
+        .select('id, name, birth_year, mbti, district')
+        .in('id', partnerIds);
+
+      const profileMap: Record<string, typeof partnerProfiles extends (infer T)[] | null ? T : never> = {};
+      partnerProfiles?.forEach(p => { if (p) profileMap[p.id] = p; });
+
+      // 각 매치의 마지막 메시지 조회
+      const enriched: Match[] = await Promise.all(
+        matchRows.map(async (m, idx) => {
+          const partnerId = m.user_a_id === user.id ? m.user_b_id : m.user_a_id;
+          const partner = profileMap[partnerId];
+
+          // 마지막 메시지
+          const { data: msgs } = await supabase
+            .from('chat_messages')
+            .select('content, created_at, sender_id')
+            .eq('match_id', m.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const lastMsg = msgs?.[0] ?? null;
+
+          // 읽지 않은 메시지 (간소화: sender가 파트너인 메시지)
+          const { count: unreadCount } = await supabase
+            .from('chat_messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('match_id', m.id)
+            .eq('sender_id', partnerId)
+            .eq('is_read', false);
+
+          return {
+            id: m.id,
+            partner_id: partnerId,
+            partner_name: partner?.name ?? '상대방',
+            partner_birth_year: partner?.birth_year ?? null,
+            partner_mbti: partner?.mbti ?? null,
+            partner_district: partner?.district ?? null,
+            state: m.state,
+            last_message: lastMsg?.content ?? null,
+            last_message_at: lastMsg?.created_at ?? m.matched_at,
+            unread: unreadCount ?? 0,
+            _idx: idx,
+          } as Match & { _idx: number };
+        })
+      );
+
+      setMatches(enriched);
+      setLoading(false);
+    };
+
+    loadMatches();
+  }, [user, authLoading]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4">
+        <p className="text-base font-medium text-gray-900">로그인이 필요합니다</p>
+        <button onClick={() => router.push('/onboarding')}
+          className="bg-[#0f0f0f] text-white px-6 py-3 rounded-full text-sm font-medium">
+          가입/로그인
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-white min-h-screen">
       {/* 헤더 */}
       <div className="px-6 pt-14 pb-4">
         <h1 className="text-xl font-medium text-gray-900">매칭</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{MOCK_MATCHES.length}명과 연결됨</p>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {matches.length > 0 ? `${matches.length}명과 연결됨` : '아직 매칭이 없어요'}
+        </p>
       </div>
 
-      {/* 새로운 매칭 가로 스크롤 */}
-      <div className="px-6 mb-5">
-        <p className="text-xs text-gray-400 mb-3">새로운 매칭</p>
-        <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-          {MOCK_MATCHES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => router.push(`/chat/${m.id}`)}
-              className="flex flex-col items-center gap-1.5 flex-shrink-0"
-            >
-              {/* 아바타 */}
-              <div className="relative">
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center text-2xl border-2 border-white"
-                  style={{ background: `linear-gradient(135deg, ${m.gradientFrom}, ${m.gradientTo})` }}
-                >
-                  {m.flag}
-                </div>
-                {m.isTruenote && (
-                  <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#0f0f0f]
-                                  flex items-center justify-center border-2 border-white">
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24"
-                      stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round"
-                        d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                    </svg>
-                  </div>
-                )}
-                {m.unread > 0 && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500
-                                  flex items-center justify-center border border-white">
-                    <span className="text-white text-[9px] font-medium">{m.unread}</span>
-                  </div>
-                )}
-              </div>
-              <span className="text-xs text-gray-600">{m.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 구분선 */}
-      <div className="h-px bg-gray-100 mx-6 mb-2" />
-
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto">
-        <p className="text-xs text-gray-400 px-6 py-3">메시지</p>
-        {MOCK_MATCHES.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => router.push(`/chat/${m.id}`)}
-            className="w-full flex items-center gap-3 px-6 py-3.5 active:bg-gray-50 transition-colors"
-          >
-            {/* 아바타 */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
-                style={{ background: `linear-gradient(135deg, ${m.gradientFrom}, ${m.gradientTo})` }}
-              >
-                {m.flag}
-              </div>
-              {m.isTruenote && (
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0f0f0f]
-                                flex items-center justify-center border border-white">
-                  <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                      d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                  </svg>
-                </div>
-              )}
-            </div>
-
-            {/* 텍스트 */}
-            <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-baseline justify-between mb-0.5">
-                <span className={`text-sm ${m.unread > 0 ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
-                  {m.name}, {m.age}
-                </span>
-                <span className="text-xs text-gray-300 flex-shrink-0 ml-2">{m.lastTime}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <p className={`text-xs truncate ${m.unread > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
-                  {m.lastMessage}
-                </p>
-                {m.unread > 0 && (
-                  <div className="w-4 h-4 rounded-full bg-[#0f0f0f] flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[9px] font-medium">{m.unread}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+      {matches.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4">
+          <div className="text-4xl">💌</div>
+          <p className="text-base font-medium text-gray-900">아직 매칭된 상대가 없어요</p>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            탐색 탭에서 마음에 드는 분께<br />좋아요를 보내보세요!
+          </p>
+          <button onClick={() => router.push('/home')}
+            className="mt-2 bg-[#0f0f0f] text-white px-6 py-3 rounded-full text-sm font-medium">
+            탐색하러 가기
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* 새로운 매칭 가로 스크롤 */}
+          <div className="px-6 mb-5">
+            <p className="text-xs text-gray-400 mb-3">진행 중인 매칭</p>
+            <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+              {matches.map((m, i) => {
+                const g = GRADIENTS[i % GRADIENTS.length];
+                const age = partnerAge(m.partner_birth_year);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => router.push(`/chat/${m.id}`)}
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                  >
+                    <div className="relative">
+                      <div
+                        className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-medium text-gray-700 border-2 border-white"
+                        style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
+                      >
+                        {m.partner_name.slice(0, 1)}
+                      </div>
+                      {m.unread > 0 && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500
+                                        flex items-center justify-center border border-white">
+                          <span className="text-white text-[9px] font-medium">{m.unread}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-600">{m.partner_name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 구분선 */}
+          <div className="h-px bg-gray-100 mx-6 mb-2" />
+
+          {/* 메시지 목록 */}
+          <div className="flex-1 overflow-y-auto">
+            <p className="text-xs text-gray-400 px-6 py-3">메시지</p>
+            {matches.map((m, i) => {
+              const g = GRADIENTS[i % GRADIENTS.length];
+              const age = partnerAge(m.partner_birth_year);
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => router.push(`/chat/${m.id}`)}
+                  className="w-full flex items-center gap-3 px-6 py-3.5 active:bg-gray-50 transition-colors"
+                >
+                  {/* 아바타 */}
+                  <div className="relative flex-shrink-0">
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+                      style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
+                    >
+                      {m.partner_name.slice(0, 1)}
+                    </div>
+                  </div>
+
+                  {/* 텍스트 */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="flex items-baseline justify-between mb-0.5">
+                      <span className={`text-sm ${m.unread > 0 ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                        {m.partner_name}{age ? `, ${age}` : ''}
+                        {m.partner_district && (
+                          <span className="text-xs font-normal text-gray-400 ml-1">· {m.partner_district}</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-gray-300 flex-shrink-0 ml-2">
+                        {timeAgo(m.last_message_at)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-xs truncate ${m.unread > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                        {m.last_message ?? '매칭되었어요! 대화를 시작해보세요 👋'}
+                      </p>
+                      {m.unread > 0 && (
+                        <div className="w-4 h-4 rounded-full bg-[#0f0f0f] flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-[9px] font-medium">{m.unread}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
