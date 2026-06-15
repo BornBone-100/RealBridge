@@ -52,10 +52,14 @@ import math
 from enum import Enum
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field, field_validator
 
+from database import get_admin_db
+
 router = APIRouter(prefix="/api/matching", tags=["matching"])
+
+ACTIVE_MATCH_STATES = ("waiting", "active")
 
 
 # ── 태그 카테고리 ─────────────────────────────────────────────
@@ -383,24 +387,115 @@ async def get_match_score(user_a_id: str, user_b_id: str):
     return calculate_match_score(profile_a, profile_b)
 
 
+@router.get("/lock-status/{user_id}")
+async def get_lock_status(user_id: str, db=Depends(get_admin_db)):
+    """
+    유저의 exclusive match lock 상태 조회.
+    active/waiting 매치가 있으면 locked=True + 매치 정보 반환.
+    """
+    res = db.table("matches").select(
+        "id, state, meetings_done, matched_at, user_a_id, user_b_id"
+    ).in_("state", list(ACTIVE_MATCH_STATES)).or_(
+        f"user_a_id.eq.{user_id},user_b_id.eq.{user_id}"
+    ).limit(1).execute()
+
+    if not res.data:
+        return {"locked": False, "match": None}
+
+    match = res.data[0]
+    partner_id = match["user_b_id"] if match["user_a_id"] == user_id else match["user_a_id"]
+    return {
+        "locked": True,
+        "match": {
+            "match_id": match["id"],
+            "state": match["state"],
+            "meetings_done": match["meetings_done"],
+            "meetings_remaining": max(0, 3 - match["meetings_done"]),
+            "matched_at": match["matched_at"],
+            "partner_id": partner_id,
+        },
+    }
+
+
 @router.get("/candidates/{user_id}", response_model=list[MatchScoreResult])
-async def get_ranked_candidates(user_id: str, min_score: float = 0.0):
+async def get_ranked_candidates(
+    user_id: str,
+    min_score: float = 0.0,
+    db=Depends(get_admin_db),
+):
     """
     해당 유저와의 매칭 점수가 높은 순으로 후보 목록 반환.
-    min_score: 최소 일치율 필터 (기본 0 = 전체)
+    - 본인이 active 매치 중이면 빈 목록 반환 (재매칭 차단)
+    - 이미 active 매치 중인 다른 유저도 후보에서 제외
     """
     my_profile = _rich_profiles.get(user_id)
     if not my_profile:
         raise HTTPException(status_code=404, detail="본인 프로필을 먼저 작성해 주세요.")
 
+    # 본인 lock 확인
+    my_lock = db.table("matches").select("id").in_(
+        "state", list(ACTIVE_MATCH_STATES)
+    ).or_(f"user_a_id.eq.{user_id},user_b_id.eq.{user_id}").limit(1).execute()
+    if my_lock.data:
+        return []  # 본인이 매칭 중 → 후보 없음
+
+    # 현재 active 매치가 있는 유저 ID 수집 (후보에서 제외)
+    locked_res = db.table("matches").select(
+        "user_a_id, user_b_id"
+    ).in_("state", list(ACTIVE_MATCH_STATES)).execute()
+
+    locked_users: set[str] = set()
+    for row in (locked_res.data or []):
+        locked_users.add(str(row["user_a_id"]))
+        locked_users.add(str(row["user_b_id"]))
+
     results = []
     for other_id, other_profile in _rich_profiles.items():
         if other_id == user_id:
             continue
+        if other_id in locked_users:
+            continue  # 이미 매칭 중인 유저 제외
         score_result = calculate_match_score(my_profile, other_profile)
         if score_result.score >= min_score:
             results.append(score_result)
 
-    # 점수 높은 순 정렬
     results.sort(key=lambda r: r.score, reverse=True)
     return results
+
+
+class CreateMatchRequest(BaseModel):
+    user_a_id: str
+    user_b_id: str
+
+
+@router.post("/create")
+async def create_match(req: CreateMatchRequest, db=Depends(get_admin_db)):
+    """
+    관리자가 두 유저를 매칭.
+    둘 중 하나라도 active 매치가 있으면 409 Conflict.
+    DB 트리거가 2차 방어선 역할을 함.
+    """
+    # 양쪽 lock 확인
+    for uid, label in [(req.user_a_id, "user_a"), (req.user_b_id, "user_b")]:
+        lock = db.table("matches").select("id").in_(
+            "state", list(ACTIVE_MATCH_STATES)
+        ).or_(f"user_a_id.eq.{uid},user_b_id.eq.{uid}").limit(1).execute()
+        if lock.data:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{label} ({uid}) 는 현재 매칭 진행 중입니다. 3회 만남이 완료되거나 매칭이 종료된 후 새 매칭이 가능합니다.",
+            )
+
+    try:
+        result = db.table("matches").insert({
+            "user_a_id": req.user_a_id,
+            "user_b_id": req.user_b_id,
+            "state": "waiting",
+        }).execute()
+    except Exception as e:
+        err_str = str(e)
+        if "already has an active match" in err_str:
+            raise HTTPException(status_code=409, detail="두 유저 중 이미 매칭 중인 유저가 있습니다.")
+        raise HTTPException(status_code=500, detail=f"매칭 생성 실패: {err_str}")
+
+    return {"success": True, "match": result.data[0] if result.data else None}

@@ -2,11 +2,70 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Nationality } from '@/lib/types';
 import ProtectedView from '@/components/ProtectedView';
 import LikeQuota from '@/components/LikeQuota';
 
 const CURRENT_USER_ID = 'user_abc123';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+// ── 활성 매치 잠금 상태 타입 ─────────────────────────────────
+interface ActiveMatch {
+  match_id: string;
+  state: string;
+  meetings_done: number;
+  meetings_remaining: number;
+  matched_at: string;
+  partner_id: string;
+}
+
+// ── 매칭 잠금 배너 컴포넌트 ──────────────────────────────────
+function MatchLockBanner({ match, onGoToMatch }: { match: ActiveMatch; onGoToMatch: () => void }) {
+  const dots = Array.from({ length: 3 }).map((_, i) => i < match.meetings_done);
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24 bg-white">
+      {/* 상태 카드 */}
+      <div className="w-full max-w-sm bg-[#0f0f0f] rounded-3xl p-7 text-white text-center mb-6">
+        <div className="text-4xl mb-4">💑</div>
+        <h2 className="text-xl font-semibold mb-2">매칭 진행 중</h2>
+        <p className="text-sm text-white/70 leading-relaxed mb-6">
+          현재 진행 중인 만남이 있어요.<br />
+          3번의 만남이 완료되거나 매칭이 종료된 후<br />새로운 인연을 찾을 수 있어요.
+        </p>
+
+        {/* 3회 만남 진행 도트 */}
+        <div className="flex items-center justify-center gap-3 mb-6">
+          {dots.map((done, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2
+                ${done ? 'bg-white text-[#0f0f0f] border-white' : 'border-white/30 text-white/40'}`}>
+                {done ? '✓' : i + 1}
+              </div>
+              <span className="text-[10px] text-white/50">{i + 1}번째</span>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-sm text-white/60">
+          {match.meetings_remaining > 0
+            ? `앞으로 ${match.meetings_remaining}번의 만남이 남았어요`
+            : '3번의 만남이 완료됐어요! 🎉'}
+        </p>
+      </div>
+
+      {/* 현재 매칭 보러가기 버튼 */}
+      <button
+        onClick={onGoToMatch}
+        className="w-full max-w-sm bg-[#0f0f0f] text-white py-4 rounded-2xl text-sm font-medium mb-3"
+      >
+        현재 매칭 보러가기 →
+      </button>
+      <p className="text-xs text-gray-400 text-center leading-relaxed">
+        3rd Vibe는 한 번에 한 사람과의 진심을 믿어요.<br />
+        한 커플에 집중하는 프리미엄 매칭 서비스입니다.
+      </p>
+    </div>
+  );
+}
 
 // Mock 좋아요 할당량 (실제: /api/safety/quota/:userId 에서 fetch)
 const MOCK_QUOTA = { used: 3, limit: 5, tier: 'basic' as const, resetAt: new Date(Date.now() + 8 * 3600_000).toISOString() };
@@ -16,57 +75,73 @@ interface Profile {
   id: string;
   name: string;
   age: number;
-  nationality: Nationality;
-  flag: string;
-  city: string;
+  district: string;   // 활동 구 (수영구, 해운대구 등)
   job: string;
-  tagline: string;           // 한 줄 소개 (Layer 1 히어로 텍스트)
-  datingPhilosophy: string;  // 연애관 (Layer 2)
-  distanceAttitude: string;  // 장거리에 대한 생각 (Layer 2)
-  contactFrequency: string;  // 연락 빈도 기대치 (Layer 2)
-  bio: string;               // 자기소개 전문 (Layer 3)
+  mbti: string;
+  tagline: string;          // 한 줄 소개 (Layer 1)
+  datingPhilosophy: string; // 연애관 (Layer 2)
+  busanFavorite: string;    // 부산에서 좋아하는 곳/것 (Layer 2)
+  contactFrequency: string; // 연락 빈도 (Layer 2)
+  bio: string;              // 자기소개 전문 (Layer 3)
   interests: string[];
   isTruenote: boolean;
   gradientFrom: string;
   gradientTo: string;
+  emoji: string;            // 아바타 이모지
 }
 
 const PROFILES: Profile[] = [
   {
-    id: 'p1', name: 'Yuki', age: 26, nationality: 'JP', flag: '🇯🇵',
-    city: '도쿄', job: 'UI 디자이너',
-    tagline: '서울의 골목을 함께 걷고 싶어요',
-    datingPhilosophy: '서로의 문화를 존중하면서 천천히 가까워지는 관계를 원해요. 처음부터 무겁지 않게, 하지만 진심으로.',
-    distanceAttitude: '장거리도 충분히 가능하다고 생각해요. 자주 볼 수 없는 만큼 만날 때 더 특별하니까요.',
-    contactFrequency: '하루 1~2번 정도. 서로의 일상을 방해하지 않는 선에서요.',
-    bio: '도쿄에서 앱 UI를 디자인하고 있어요. 한국 영화와 음악을 좋아해서 한국어를 독학 중이에요. 제주도와 경주를 꼭 가보고 싶고, 언젠가 서울에서 6개월 정도 살아보고 싶다는 꿈이 있어요. 좋아하는 것들: 오래된 카페, 새벽 산책, 비 오는 날 재즈, 혼자 보는 미술관.',
-    interests: ['여행', '카페', '재즈', '미술'],
+    id: 'p1', name: '지수', age: 26,
+    district: '수영구', job: 'UX 디자이너', mbti: 'INFJ',
+    emoji: '🌊',
+    tagline: '광안대교 야경 보면서 맥주 한 캔 어때요',
+    datingPhilosophy: '서두르지 않아도 괜찮아요. 천천히 서로를 알아가면서 진심이 쌓이는 게 좋더라고요. 가벼운 만남보다는 오래 함께할 수 있는 사람을 찾아요.',
+    busanFavorite: '수영구 골목 카페투어 🍵 — 광안리 해변 새벽 산책이 제 최애 코스예요.',
+    contactFrequency: '하루 1~2번 정도. 서로의 일상을 방해하지 않는 선에서 소소하게 연락하고 싶어요.',
+    bio: '부산에서 나고 자란 토박이예요. 낮에는 화면 디자인하고, 퇴근 후엔 광안리 근처를 어슬렁거리는 게 루틴이에요. 부산 바다가 세상에서 제일 예쁘다고 생각하고, 그 이유 하나로 서울 취업 제안 거절하고 남았어요. 함께 부산 맛집 탐방하고, 영화 보고, 사소한 것들로 웃을 수 있는 사람 만나고 싶어요.',
+    interests: ['카페투어', '영화', '바다', '드라이브'],
     isTruenote: true,
-    gradientFrom: '#ede9fe', gradientTo: '#dbeafe',
+    gradientFrom: '#dbeafe', gradientTo: '#ede9fe',
   },
   {
-    id: 'p2', name: '小雅', age: 24, nationality: 'TW', flag: '🇹🇼',
-    city: '타이베이', job: '브랜드 마케터',
-    tagline: '두 나라 사이 어딘가에 우리만의 공간을',
-    datingPhilosophy: '연애는 서로를 바꾸는 게 아니라 서로에게 스며드는 것 같아요.',
-    distanceAttitude: '거리는 문제가 아니에요. 방향이 같으면 되니까요.',
-    contactFrequency: '매일 짧게라도 연락하고 싶어요. 하루를 공유하는 느낌이 좋아요.',
-    bio: '타이베이에서 패션 브랜드 마케팅을 하고 있어요. 한국 드라마로 한국어를 공부했고 이제는 꽤 읽고 쓸 수 있어요. 타이베이의 야시장과 서울의 한강이 제가 제일 좋아하는 공간이에요. 요리하는 것도 좋아해서 한식에도 도전 중이에요.',
-    interests: ['요리', '야시장', '독서', '한국어'],
+    id: 'p2', name: '민준', age: 29,
+    district: '해운대구', job: '회사원 (IT)', mbti: 'ENTP',
+    emoji: '🏄',
+    tagline: '해운대 주민인데 정작 바다는 잘 안 가요',
+    datingPhilosophy: '연애는 일상이 겹치는 것 같아요. 특별한 날보다 평범한 날을 같이 보낼 수 있는 사람이 좋아요.',
+    busanFavorite: '센텀 야경 드라이브 🚗 — 벡스코 앞 카페거리에서 노트북 펴는 것도 좋아해요.',
+    contactFrequency: '바쁜 날엔 짧게라도 안부 나누고, 여유 있을 때 길게 얘기해요.',
+    bio: '해운대 토박이인데 정작 모래사장은 1년에 두 번 갈까 말까예요. 주중엔 IT 회사 다니고 주말엔 드라이브 다니거나 카페에서 책 읽어요. 부산 사람들이 서울 사람들보다 정 많다는 거 진짜인 것 같아요. 같이 동백섬 산책하고 싶어요.',
+    interests: ['드라이브', '독서', '맛집', '테니스'],
+    isTruenote: true,
+    gradientFrom: '#d1fae5', gradientTo: '#cffafe',
+  },
+  {
+    id: 'p3', name: '예린', age: 25,
+    district: '남구', job: '간호사', mbti: 'ISFJ',
+    emoji: '🌸',
+    tagline: '이기대 야경 보고 싶은데 같이 갈 사람 없어요',
+    datingPhilosophy: '솔직하고 따뜻한 사람이 좋아요. 화려하지 않아도 진심으로 대해주는 사람.',
+    busanFavorite: '용호동 이기대 공원 🌿 — 남구에 숨은 뷰 맛집 많아요. 제가 안내해드릴게요.',
+    contactFrequency: '매일 연락하는 걸 좋아해요. 짧아도 괜찮아요, 생각난다는 게 중요하니까요.',
+    bio: '부산대병원 근처에서 일하고 있어요. 교대 근무라 주말이 불규칙하지만, 쉬는 날엔 꼭 밖으로 나가요. 남구에 이렇게 예쁜 곳이 많은데 혼자 다니기 아쉬웠거든요. 흰여울 문화마을이랑 이기대는 꼭 같이 가고 싶어요. 저 부산 맛집 진짜 많이 알아요.',
+    interests: ['등산', '카페', '요리', '사진'],
+    isTruenote: false,
+    gradientFrom: '#fce7f3', gradientTo: '#fef3c7',
+  },
+  {
+    id: 'p4', name: '태양', age: 28,
+    district: '부산진구', job: '자영업 (카페 운영)', mbti: 'ESTP',
+    emoji: '☕',
+    tagline: '서면 카페 사장인데 손님으로 와주실 분',
+    datingPhilosophy: '같이 있을 때 편한 사람이 최고예요. 웃음이 많고 솔직한 사람이면 충분해요.',
+    busanFavorite: '서면 골목 야식 투어 🍜 — 부산 사람이면 밤 11시 돼지국밥은 당연하죠.',
+    contactFrequency: '카페 운영하다 보니 낮엔 바빠요. 저녁에 여유롭게 얘기해요.',
+    bio: '서면에서 작은 카페 운영한 지 2년 됐어요. 커피 로스팅부터 직접 해요. 카페 일 마치고 혼자 맥주 한 캔 들고 광안리 나가는 게 낙이었는데, 그 맥주 같이 마실 사람 찾고 있어요. 부산 야식 코스는 저한테 맡겨주세요. 보수동 책방골목도 좋아해요.',
+    interests: ['커피', '야식', '독서', '바다'],
     isTruenote: true,
     gradientFrom: '#fef3c7', gradientTo: '#fde8d5',
-  },
-  {
-    id: 'p3', name: 'Haruto', age: 29, nationality: 'JP', flag: '🇯🇵',
-    city: '오사카', job: '소프트웨어 엔지니어',
-    tagline: '코드처럼 논리적이지만 감정엔 솔직해요',
-    datingPhilosophy: '서로의 속도를 존중하는 관계. 급하게 가지 않아도 괜찮아요.',
-    distanceAttitude: '오사카-서울은 비행기로 한 시간 반이에요. 가깝다고 생각해요.',
-    contactFrequency: '바쁜 날엔 짧은 메시지 하나로도 충분해요. 대신 만날 때 집중하고 싶어요.',
-    bio: '오사카에서 핀테크 회사 백엔드 개발자로 일하고 있어요. 한국에 친한 친구들이 있어서 1년에 3~4번은 꼭 방문해요. 혼자 카페에서 책 읽는 걸 좋아하고, 주말엔 자전거로 오사카 구석구석을 돌아다녀요.',
-    interests: ['자전거', '독서', '커피', '여행'],
-    isTruenote: false,
-    gradientFrom: '#d1fae5', gradientTo: '#cffafe',
   },
 ];
 
@@ -123,10 +198,31 @@ export default function HomePage() {
   const layer3Ref = useRef<HTMLDivElement>(null);
 
   const [profileIdx, setProfileIdx] = useState(0);
-  const [layerReached, setLayerReached] = useState(0); // 몇 번째 레이어까지 읽었는지
+  const [layerReached, setLayerReached] = useState(0);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [passed, setPassed] = useState<Set<string>>(new Set());
   const [likeAnim, setLikeAnim] = useState(false);
+
+  // ── Exclusive Match Lock ──────────────────────────────
+  const [activeMatch, setActiveMatch] = useState<ActiveMatch | null>(null);
+  const [lockLoading, setLockLoading] = useState(true);
+
+  useEffect(() => {
+    const checkLock = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/matching/lock-status/${CURRENT_USER_ID}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.locked) setActiveMatch(data.match);
+        }
+      } catch {
+        // 서버 미연결 시 무시 (개발 환경)
+      } finally {
+        setLockLoading(false);
+      }
+    };
+    checkLock();
+  }, []);
 
   const profile = PROFILES.filter(
     (p) => !liked.has(p.id) && !passed.has(p.id)
@@ -174,6 +270,33 @@ export default function HomePage() {
     setPassed((p) => new Set(Array.from(p).concat(profile.id)));
     setProfileIdx(0);
   };
+
+  // 로딩 중
+  if (lockLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+      </div>
+    );
+  }
+
+  // 현재 매칭 진행 중 → 탐색 피드 잠금
+  if (activeMatch) {
+    return (
+      <div className="flex-1 flex flex-col bg-white min-h-screen">
+        <div className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center px-5 pt-14 pb-3
+                        bg-gradient-to-b from-white via-white/80 to-transparent">
+          <span className="text-lg font-medium text-gray-900 tracking-tight">탐색</span>
+        </div>
+        <div className="pt-24">
+          <MatchLockBanner
+            match={activeMatch}
+            onGoToMatch={() => router.push(`/chat/${activeMatch.match_id}`)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (
@@ -232,7 +355,7 @@ export default function HomePage() {
             {/* 아바타 중앙 배치 */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-32 h-32 rounded-full bg-white/40 flex items-center justify-center text-6xl">
-                {profile.flag}
+                {profile.emoji}
               </div>
             </div>
 
@@ -245,9 +368,14 @@ export default function HomePage() {
 
             {/* 히어로 텍스트 */}
             <div className="relative z-10">
-              <p className="text-[11px] tracking-widest text-gray-500 uppercase mb-2">
-                {profile.city} · {profile.job}
-              </p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] tracking-widest text-gray-500 uppercase">
+                  부산 {profile.district} · {profile.job}
+                </span>
+                <span className="text-[10px] bg-white/60 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                  {profile.mbti}
+                </span>
+              </div>
               <h2 className="text-3xl font-medium text-gray-900 leading-tight mb-2 tracking-tight">
                 {profile.name}, {profile.age}
               </h2>
@@ -288,11 +416,13 @@ export default function HomePage() {
               icon={
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5" />
+                    d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                    d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                 </svg>
               }
-              label="장거리 연애에 대해"
-              value={profile.distanceAttitude}
+              label="부산 최애 스팟"
+              value={profile.busanFavorite}
             />
             <CompatRow
               icon={
