@@ -86,7 +86,8 @@ export default function ProfileSetupPage() {
       const currentYear = new Date().getFullYear();
       const birthYear = currentYear - Number(age);
 
-      const { error: upsertError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: upsertError } = await (supabase
         .from('users')
         .upsert({
           id: user.id,
@@ -98,7 +99,7 @@ export default function ProfileSetupPage() {
           profile_photo_url: photoUrl,
           is_active: true,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        } as any, { onConflict: 'id' }) as any);
 
       if (upsertError) throw upsertError;
 
