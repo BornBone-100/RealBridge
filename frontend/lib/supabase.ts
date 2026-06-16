@@ -5,15 +5,22 @@
  * RLS는 Supabase Auth JWT로 자동 처리.
  */
 
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as _createSupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
 const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // ── 브라우저 클라이언트 (컴포넌트에서 사용) ───────────────────
+// localStorage에 세션을 저장 → 브라우저를 닫았다 열어도 로그인 유지
 export function createClient() {
-  return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY)
+  return _createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      storageKey: '3rdvibe-auth',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  })
 }
 
 // ── 싱글톤 (훅/유틸에서 바로 사용) — lazy 초기화 ──────────────
