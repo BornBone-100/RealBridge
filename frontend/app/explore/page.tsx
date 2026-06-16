@@ -13,7 +13,9 @@ interface BusanUser {
   occupation: string | null;
   mbti: string | null;
   hobbies: string[] | null;
+  bio: string | null;
   verification_status: string;
+  profile_photo_url: string | null;
 }
 
 const GRADIENTS = [
@@ -25,6 +27,117 @@ const GRADIENTS = [
 const EMOJIS = ['🌊', '🌸', '☕', '🏄', '🌿', '✨', '🎨', '🎵'];
 const DISTRICTS = ['전체', '해운대구', '수영구', '남구', '부산진구', '동래구'];
 
+// ── 프로필 상세 모달 ─────────────────────────────────────────
+function ProfileModal({ user, idx, onClose }: {
+  user: BusanUser;
+  idx: number;
+  onClose: () => void;
+}) {
+  const age = new Date().getFullYear() - user.birth_year;
+  const g = GRADIENTS[idx % GRADIENTS.length];
+  const emoji = EMOJIS[idx % EMOJIS.length];
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      {/* 배경 딤 */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      {/* 시트 */}
+      <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden
+                      animate-slide-up">
+        {/* 핸들바 */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+
+        <div className="overflow-y-auto">
+          {/* 사진 */}
+          <div className="h-56 relative flex items-center justify-center text-7xl flex-shrink-0"
+            style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}>
+            {user.profile_photo_url ? (
+              <img src={user.profile_photo_url} alt={user.name}
+                className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              emoji
+            )}
+          </div>
+
+          {/* 정보 */}
+          <div className="px-6 py-5">
+            {/* 이름 + 뱃지 */}
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-xl font-semibold text-gray-900">{user.name}, {age}</h2>
+              {user.verification_status === 'approved' && (
+                <span className="bg-[#0f0f0f] text-white text-[9px] px-2 py-0.5 rounded-full">✓ 인증</span>
+              )}
+              {user.mbti && (
+                <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
+                  {user.mbti}
+                </span>
+              )}
+            </div>
+
+            {/* 위치 + 직업 */}
+            <p className="text-sm text-gray-400 mb-4">
+              {user.district ? `부산 ${user.district}` : '부산'}
+              {user.occupation ? ` · ${user.occupation}` : ''}
+            </p>
+
+            {/* 관심사 */}
+            {(user.hobbies ?? []).length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-400 mb-2">관심사</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(user.hobbies ?? []).map(tag => (
+                    <span key={tag}
+                      className="text-xs bg-gray-50 text-gray-600 px-3 py-1 rounded-full border border-gray-100">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 자기소개 */}
+            {user.bio && (
+              <div className="mb-6">
+                <p className="text-xs text-gray-400 mb-2">자기소개</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{user.bio}</p>
+              </div>
+            )}
+
+            {/* 안내 문구 */}
+            <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-6">
+              <p className="text-xs text-gray-500 text-center leading-relaxed">
+                3rd Vibe는 컨시어지 기반 매칭 서비스입니다.<br />
+                매칭을 원하시면 매니저에게 문의해 주세요 🤝
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="px-6 pb-8 pt-2 flex gap-3 border-t border-gray-50 flex-shrink-0">
+          <button onClick={onClose}
+            className="flex-1 py-3 rounded-2xl border border-gray-200 text-sm text-gray-600
+                       active:bg-gray-50 transition-colors">
+            닫기
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes slide-up {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function ExplorePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useCurrentUser();
@@ -32,6 +145,7 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeDistrict, setActiveDistrict] = useState('전체');
+  const [selectedUser, setSelectedUser] = useState<{ user: BusanUser; idx: number } | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -39,13 +153,13 @@ export default function ExplorePage() {
       const supabase = getClient();
       let query = supabase
         .from('users')
-        .select('id, name, birth_year, district, occupation, mbti, hobbies, verification_status, profile_photo_url')
+        .select('id, name, birth_year, district, occupation, mbti, hobbies, bio, verification_status, profile_photo_url')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(30);
       if (user) query = query.neq('id', user.id);
       const { data } = await query;
-      setUsers(data ?? []);
+      setUsers((data ?? []) as BusanUser[]);
       setLoading(false);
     };
     load();
@@ -135,15 +249,15 @@ export default function ExplorePage() {
             const age = new Date().getFullYear() - u.birth_year;
             const g = GRADIENTS[idx % GRADIENTS.length];
             const emoji = EMOJIS[idx % EMOJIS.length];
-            const photoUrl = (u as Record<string, unknown>).profile_photo_url as string | null | undefined;
             return (
-              <button key={u.id} onClick={() => router.push('/home')}
+              <button key={u.id} onClick={() => setSelectedUser({ user: u, idx })}
                 className="text-left rounded-3xl overflow-hidden border border-gray-100
                            active:scale-[0.97] transition-transform">
                 <div className="h-36 flex items-center justify-center text-5xl relative overflow-hidden"
                   style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}>
-                  {photoUrl ? (
-                    <img src={photoUrl} alt={u.name} className="absolute inset-0 w-full h-full object-cover" />
+                  {u.profile_photo_url ? (
+                    <img src={u.profile_photo_url} alt={u.name}
+                      className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
                     emoji
                   )}
@@ -168,6 +282,15 @@ export default function ExplorePage() {
             );
           })}
         </div>
+      )}
+
+      {/* 프로필 상세 모달 */}
+      {selectedUser && (
+        <ProfileModal
+          user={selectedUser.user}
+          idx={selectedUser.idx}
+          onClose={() => setSelectedUser(null)}
+        />
       )}
     </div>
   );

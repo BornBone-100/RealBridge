@@ -455,12 +455,26 @@ export default function ChatPage() {
             {partner.district ? ` · 부산 ${partner.district}` : ''}
           </p>
         </div>
-        <SafetyMenu
-          targetUserId={partner.id}
-          targetName={partner.name}
-          matchId={matchId}
-          onBlockSuccess={() => router.replace('/matches')}
-        />
+        <div className="flex items-center gap-1">
+          {/* 관리자 문의 버튼 */}
+          <button
+            onClick={() => router.push('/concierge')}
+            className="w-8 h-8 flex items-center justify-center rounded-full active:bg-gray-100 transition-colors"
+            title="관리자 문의"
+          >
+            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M16.712 4.33a9.027 9.027 0 011.652 1.306c.51.51.944 1.064 1.306 1.652M16.712 4.33l-3.448 4.138m3.448-4.138a9 9 0 00-12.77 12.77l-1.474 4.42a.75.75 0 00.956.956l4.42-1.474a9 9 0 0012.77-12.77z" />
+            </svg>
+          </button>
+          <SafetyMenu
+            targetUserId={partner.id}
+            targetName={partner.name}
+            matchId={matchId}
+            onBlockSuccess={() => router.replace('/matches')}
+          />
+        </div>
       </div>
 
       {/* 대화 주제 배너 */}

@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClient } from '@/lib/supabase';
 
 interface Message {
   id: string;
   content: string;
   isFromAdmin: boolean;
   createdAt: Date;
+  isPending?: boolean;
 }
 
 const QUICK_REPLIES = [
@@ -17,51 +19,137 @@ const QUICK_REPLIES = [
   '앱 이용 방법',
 ];
 
-const AUTO_REPLY = '안녕하세요! 3rd Vibe 매니저입니다 👋\n문의 주셔서 감사합니다. 영업 시간(평일 10:00~18:00) 내 빠르게 답변드리겠습니다.\n긴급 문의는 카카오채널 @3rdvibe로도 연락 주세요.';
+const WELCOME_MSG: Message = {
+  id: 'welcome',
+  content: '안녕하세요! 3rd Vibe 매니저입니다 👋\n문의 주셔서 감사합니다. 영업 시간(평일 10:00~18:00) 내 빠르게 답변드리겠습니다.\n긴급 문의는 카카오채널 @3rdvibe로도 연락 주세요.',
+  isFromAdmin: true,
+  createdAt: new Date(),
+};
 
 export default function ConciergePage() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '0',
-      content: AUTO_REPLY,
-      isFromAdmin: true,
-      createdAt: new Date(),
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const channelRef = useRef<ReturnType<ReturnType<typeof getClient>['channel']> | null>(null);
+
+  // ── 유저 확인 + 메시지 로드 + Realtime 구독 ─────────────────
+  useEffect(() => {
+    const supabase = getClient();
+
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+
+      // 기존 메시지 불러오기
+      const { data } = await supabase
+        .from('concierge_messages')
+        .select('id, content, is_from_admin, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (data && data.length > 0) {
+        const loaded: Message[] = data.map((row) => ({
+          id: row.id,
+          content: row.content,
+          isFromAdmin: row.is_from_admin,
+          createdAt: new Date(row.created_at),
+        }));
+        setMessages([WELCOME_MSG, ...loaded]);
+      }
+
+      // Realtime 구독 (관리자 답장 실시간 수신)
+      const channel = supabase
+        .channel(`concierge_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'concierge_messages',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              id: string; content: string; is_from_admin: boolean; created_at: string;
+            };
+            if (!row.is_from_admin) return; // 내가 보낸 것은 낙관적 업데이트로 이미 표시
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === row.id)) return prev;
+              return [...prev, {
+                id: row.id,
+                content: row.content,
+                isFromAdmin: true,
+                createdAt: new Date(row.created_at),
+              }];
+            });
+          }
+        )
+        .subscribe();
+
+      channelRef.current = channel;
+    };
+
+    init();
+
+    return () => {
+      if (channelRef.current) {
+        const supabase = getClient();
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (text?: string) => {
-    const content = (text || input).trim();
-    if (!content) return;
+  const sendMessage = useCallback(async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || sending) return;
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
+    const tempId = `tmp_${Date.now()}`;
+    const optimistic: Message = {
+      id: tempId,
       content,
       isFromAdmin: false,
       createdAt: new Date(),
+      isPending: true,
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, optimistic]);
     setInput('');
     setSending(true);
 
     try {
-      // 실제 구현:
-      // 1. Supabase concierge_messages에 저장
-      // 2. 백엔드 /api/concierge/send 호출 → Solapi SMS 트리거
-      await new Promise(r => setTimeout(r, 800));
+      const supabase = getClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('로그인 필요');
+
+      const { data, error } = await supabase
+        .from('concierge_messages')
+        .insert({ user_id: user.id, content, is_from_admin: false, is_read: false })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      // 낙관적 메시지 → 확정 메시지로 교체
+      setMessages((prev) =>
+        prev.map((m) => m.id === tempId ? { ...m, id: data.id, isPending: false } : m)
+      );
+    } catch {
+      // 전송 실패 시 낙관적 메시지 제거
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  };
+  }, [input, sending]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -72,6 +160,8 @@ export default function ConciergePage() {
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+  const showQuickReplies = messages.filter((m) => !m.isFromAdmin && m.id !== 'welcome').length === 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -111,7 +201,7 @@ export default function ConciergePage() {
               <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap
                 ${msg.isFromAdmin
                   ? 'bg-gray-100 text-gray-900 rounded-tl-sm'
-                  : 'bg-[#0f0f0f] text-white rounded-tr-sm'}`}>
+                  : `rounded-tr-sm ${msg.isPending ? 'bg-gray-600' : 'bg-[#0f0f0f]'} text-white`}`}>
                 {msg.content}
               </div>
               <span className="text-[10px] text-gray-400 px-1">{formatTime(msg.createdAt)}</span>
@@ -136,8 +226,8 @@ export default function ConciergePage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* 빠른 답변 버튼 */}
-      {messages.length <= 1 && (
+      {/* 자주 묻는 질문 칩 */}
+      {showQuickReplies && (
         <div className="px-4 pb-2">
           <p className="text-xs text-gray-400 mb-2">자주 묻는 질문</p>
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
