@@ -38,6 +38,7 @@ interface PartnerInfo {
   gradientFrom: string;
   gradientTo: string;
   topicContent: string | null;
+  photoUrl: string | null;
 }
 
 const GRADIENTS = [
@@ -232,7 +233,7 @@ export default function ChatPage() {
       // 파트너 프로필
       const { data: pProfile } = await supabase
         .from('users')
-        .select('id, name, birth_year, district, mbti, verification_status')
+        .select('id, name, birth_year, district, mbti, verification_status, profile_photo_url')
         .eq('id', partnerId)
         .single();
 
@@ -260,6 +261,7 @@ export default function ChatPage() {
         gradientFrom: GRADIENTS[0].from,
         gradientTo: GRADIENTS[0].to,
         topicContent,
+        photoUrl: (pProfile as Record<string, unknown>)?.profile_photo_url as string | null ?? null,
       });
 
       setLoadingPartner(false);
@@ -363,12 +365,17 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
-            style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
-          >
-            {partner.name.slice(0, 1)}
-          </div>
+          {partner.photoUrl ? (
+            <img src={partner.photoUrl} alt={partner.name}
+              className="w-9 h-9 rounded-full object-cover" />
+          ) : (
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+              style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
+            >
+              {partner.name.slice(0, 1)}
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium text-gray-900">
               {partner.name}{partner.age ? `, ${partner.age}` : ''}
@@ -414,12 +421,17 @@ export default function ChatPage() {
           </svg>
         </button>
         <div className="relative">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
-            style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
-          >
-            {partner.name.slice(0, 1)}
-          </div>
+          {partner.photoUrl ? (
+            <img src={partner.photoUrl} alt={partner.name}
+              className="w-9 h-9 rounded-full object-cover" />
+          ) : (
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+              style={{ background: `linear-gradient(135deg, ${partner.gradientFrom}, ${partner.gradientTo})` }}
+            >
+              {partner.name.slice(0, 1)}
+            </div>
+          )}
           {status.connected && (
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-white" />
           )}

@@ -39,7 +39,7 @@ export default function ExplorePage() {
       const supabase = getClient();
       let query = supabase
         .from('users')
-        .select('id, name, birth_year, district, occupation, mbti, hobbies, verification_status')
+        .select('id, name, birth_year, district, occupation, mbti, hobbies, verification_status, profile_photo_url')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -135,13 +135,18 @@ export default function ExplorePage() {
             const age = new Date().getFullYear() - u.birth_year;
             const g = GRADIENTS[idx % GRADIENTS.length];
             const emoji = EMOJIS[idx % EMOJIS.length];
+            const photoUrl = (u as Record<string, unknown>).profile_photo_url as string | null | undefined;
             return (
               <button key={u.id} onClick={() => router.push('/home')}
                 className="text-left rounded-3xl overflow-hidden border border-gray-100
                            active:scale-[0.97] transition-transform">
-                <div className="h-36 flex items-center justify-center text-5xl"
+                <div className="h-36 flex items-center justify-center text-5xl relative overflow-hidden"
                   style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}>
-                  {emoji}
+                  {photoUrl ? (
+                    <img src={photoUrl} alt={u.name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    emoji
+                  )}
                 </div>
                 <div className="px-3 py-2.5">
                   <div className="flex items-center gap-1.5 mb-0.5">

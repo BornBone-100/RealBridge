@@ -12,6 +12,7 @@ interface Match {
   partner_birth_year: number | null;
   partner_mbti: string | null;
   partner_district: string | null;
+  partner_photo_url: string | null;
   state: string;
   last_message: string | null;
   last_message_at: string | null;
@@ -78,7 +79,7 @@ export default function MatchesPage() {
       // 파트너 프로필 일괄 조회
       const { data: partnerProfiles } = await supabase
         .from('users')
-        .select('id, name, birth_year, mbti, district')
+        .select('id, name, birth_year, mbti, district, profile_photo_url')
         .in('id', partnerIds);
 
       const profileMap: Record<string, typeof partnerProfiles extends (infer T)[] | null ? T : never> = {};
@@ -115,6 +116,7 @@ export default function MatchesPage() {
             partner_birth_year: partner?.birth_year ?? null,
             partner_mbti: partner?.mbti ?? null,
             partner_district: partner?.district ?? null,
+            partner_photo_url: (partner as Record<string, unknown>)?.profile_photo_url as string | null ?? null,
             state: m.state,
             last_message: lastMsg?.content ?? null,
             last_message_at: lastMsg?.created_at ?? m.matched_at,
@@ -189,12 +191,20 @@ export default function MatchesPage() {
                     className="flex flex-col items-center gap-1.5 flex-shrink-0"
                   >
                     <div className="relative">
-                      <div
-                        className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-medium text-gray-700 border-2 border-white"
-                        style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
-                      >
-                        {m.partner_name.slice(0, 1)}
-                      </div>
+                      {m.partner_photo_url ? (
+                        <img
+                          src={m.partner_photo_url}
+                          alt={m.partner_name}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-white"
+                        />
+                      ) : (
+                        <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-medium text-gray-700 border-2 border-white"
+                          style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
+                        >
+                          {m.partner_name.slice(0, 1)}
+                        </div>
+                      )}
                       {m.unread > 0 && (
                         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500
                                         flex items-center justify-center border border-white">
@@ -226,12 +236,20 @@ export default function MatchesPage() {
                 >
                   {/* 아바타 */}
                   <div className="relative flex-shrink-0">
-                    <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
-                      style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
-                    >
-                      {m.partner_name.slice(0, 1)}
-                    </div>
+                    {m.partner_photo_url ? (
+                      <img
+                        src={m.partner_photo_url}
+                        alt={m.partner_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-medium text-gray-700"
+                        style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}
+                      >
+                        {m.partner_name.slice(0, 1)}
+                      </div>
+                    )}
                   </div>
 
                   {/* 텍스트 */}

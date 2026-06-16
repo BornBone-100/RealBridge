@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Nationality } from '@/lib/types';
+import { getClient } from '@/lib/supabase';
 
 const INTERESTS = ['여행', '맛집', '카페', '음악', '독서', '운동', '요리', '게임', '영화', '반려동물'];
 const NATIONALITIES: { code: Nationality; label: string; flag: string }[] = [
@@ -16,6 +17,7 @@ export default function ProfileSetupPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -24,6 +26,7 @@ export default function ProfileSetupPage() {
   const [bio, setBio] = useState('');
   const [datingValues, setDatingValues] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleInterest = (i: string) =>
     setInterests((prev) =>
@@ -32,7 +35,10 @@ export default function ProfileSetupPage() {
 
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setImageUrl(URL.createObjectURL(file));
+    if (file) {
+      setImageFile(file);
+      setImageUrl(URL.createObjectURL(file));
+    }
   };
 
   const validate = () => {
@@ -49,10 +55,60 @@ export default function ProfileSetupPage() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (!validate()) return;
-    // TODO: 서버에 프로필 저장 후 이동
-    router.push('/home');
+  const handleSubmit = async () => {
+    if (!validate() || submitting) return;
+    setSubmitting(true);
+
+    try {
+      const supabase = getClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('로그인이 필요합니다.');
+
+      // 1. 사진 업로드
+      let photoUrl: string | null = null;
+      if (imageFile) {
+        const ext = imageFile.name.split('.').pop() ?? 'jpg';
+        const path = `${user.id}/profile.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('profile-photos')
+          .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('profile-photos')
+          .getPublicUrl(path);
+        // 캐시 무력화용 타임스탬프 추가
+        photoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      }
+
+      // 2. 프로필 저장
+      const currentYear = new Date().getFullYear();
+      const birthYear = currentYear - Number(age);
+
+      const { error: upsertError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          name: name.trim(),
+          birth_year: birthYear,
+          bio: bio.trim(),
+          ...(nationality && { nationality }),
+          hobbies: interests,
+          profile_photo_url: photoUrl,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (upsertError) throw upsertError;
+
+      router.push('/home');
+    } catch (err) {
+      console.error('프로필 저장 실패:', err);
+      setErrors((prev) => ({ ...prev, submit: '저장에 실패했습니다. 다시 시도해 주세요.' }));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const bioOk = bio.length >= MIN_BIO_LENGTH;
@@ -72,9 +128,10 @@ export default function ProfileSetupPage() {
         </div>
         <button
           onClick={handleSubmit}
-          className="text-sm font-medium text-[#0f0f0f] bg-gray-100 px-4 py-1.5 rounded-full"
+          disabled={submitting}
+          className="text-sm font-medium text-[#0f0f0f] bg-gray-100 px-4 py-1.5 rounded-full disabled:opacity-40"
         >
-          완료
+          {submitting ? '저장 중...' : '완료'}
         </button>
       </div>
 
@@ -98,6 +155,12 @@ export default function ProfileSetupPage() {
                 </svg>
                 <span className="text-xs text-gray-300">사진 추가</span>
               </>
+            )}
+            {/* 변경 오버레이 */}
+            {imageUrl && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-medium">변경</span>
+              </div>
             )}
           </button>
           {errors.image && <p className="text-xs text-red-400">{errors.image}</p>}
@@ -217,13 +280,18 @@ export default function ProfileSetupPage() {
           {errors.datingValues && <p className="text-xs text-red-400 mt-1">{errors.datingValues}</p>}
         </div>
 
+        {errors.submit && (
+          <p className="text-xs text-red-400 text-center">{errors.submit}</p>
+        )}
+
         {/* 제출 버튼 */}
         <button
           onClick={handleSubmit}
+          disabled={submitting}
           className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                     active:scale-[0.98] transition-transform mb-2"
+                     active:scale-[0.98] transition-transform mb-2 disabled:opacity-50"
         >
-          프로필 완성하기
+          {submitting ? '저장 중...' : '프로필 완성하기'}
         </button>
       </div>
     </div>
