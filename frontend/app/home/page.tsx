@@ -20,14 +20,21 @@ interface ActiveMatch {
 }
 
 // ── 매칭 잠금 배너 컴포넌트 ──────────────────────────────────
-function MatchLockBanner({ match, onGoToMatch }: { match: ActiveMatch; onGoToMatch: () => void }) {
+function MatchLockBanner({ match, onGoToMatch, isDemo }: { match: ActiveMatch; onGoToMatch: () => void; isDemo?: boolean }) {
   const dots = Array.from({ length: 3 }).map((_, i) => i < match.meetings_done);
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24 bg-white">
+      {/* 관리자 데모 모드 배지 */}
+      {isDemo && (
+        <div className="w-full max-w-sm mb-3 flex items-center justify-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5">
+          <span className="text-amber-500 text-sm">🛠</span>
+          <p className="text-xs text-amber-700 font-medium">관리자 데모 모드 — 실제 유저 경험과 동일하게 시뮬레이션됩니다</p>
+        </div>
+      )}
       {/* 상태 카드 */}
       <div className="w-full max-w-sm bg-[#0f0f0f] rounded-3xl p-7 text-white text-center mb-6">
         <div className="text-4xl mb-4">💑</div>
-        <h2 className="text-xl font-semibold mb-2">매칭 진행 중</h2>
+        <h2 className="text-xl font-semibold mb-2">{isDemo ? '데모 매칭 진행 중' : '매칭 진행 중'}</h2>
         <p className="text-sm text-white/70 leading-relaxed mb-6">
           현재 진행 중인 만남이 있어요.<br />
           3번의 만남이 완료되거나 매칭이 종료된 후<br />새로운 인연을 찾을 수 있어요.
@@ -212,6 +219,9 @@ export default function HomePage() {
   const [activeMatch, setActiveMatch] = useState<ActiveMatch | null>(null);
   const [lockLoading, setLockLoading] = useState(true);
 
+  // 관리자 계정 감지 (821059006834 = 국제형식 01059006834)
+  const isAdmin = user?.phone === '821059006834';
+
   useEffect(() => {
     if (authLoading || !user) {
       if (!authLoading) setLockLoading(false);
@@ -219,17 +229,45 @@ export default function HomePage() {
     }
 
     const checkLock = async () => {
+      const supabase = getClient();
       try {
         const res = await fetch(`${API_BASE}/api/matching/lock-status/${user.id}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.locked) setActiveMatch(data.match);
+          if (data.locked) {
+            setActiveMatch(data.match);
+            setLockLoading(false);
+            return;
+          }
+          // 백엔드가 응답했지만 locked=false → 바로 완료
+          setLockLoading(false);
+          return;
         }
       } catch {
-        // 서버 미연결 시 무시
-      } finally {
-        setLockLoading(false);
+        // 백엔드 미연결 → Supabase 직접 확인
       }
+
+      // ── Supabase fallback (백엔드 없이도 데모 매치 감지) ──
+      const { data: matchRows } = await supabase
+        .from('matches')
+        .select('id, state, meetings_done, matched_at, user_a_id, user_b_id')
+        .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+        .in('state', ['waiting', 'active'])
+        .limit(1);
+
+      if (matchRows && matchRows.length > 0) {
+        const m = matchRows[0];
+        const partnerId = m.user_a_id === user.id ? m.user_b_id : m.user_a_id;
+        setActiveMatch({
+          match_id: m.id,
+          state: m.state,
+          meetings_done: m.meetings_done ?? 0,
+          meetings_remaining: Math.max(0, 3 - (m.meetings_done ?? 0)),
+          matched_at: m.matched_at,
+          partner_id: partnerId,
+        });
+      }
+      setLockLoading(false);
     };
 
     // 좋아요 할당량 조회
@@ -331,6 +369,28 @@ export default function HomePage() {
     );
   }
 
+  // 비로그인 → 가입/로그인 유도
+  if (!user) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-5 bg-white">
+        <div className="text-5xl">✨</div>
+        <div>
+          <p className="text-lg font-semibold text-gray-900 mb-1">3rd Vibe에 오신 것을 환영해요</p>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            부산의 진짜 인연을 만나보세요.<br />
+            가입 후 프리미엄 매칭을 시작할 수 있어요.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/onboarding')}
+          className="w-full bg-[#0f0f0f] text-white py-4 rounded-2xl text-sm font-semibold"
+        >
+          시작하기
+        </button>
+      </div>
+    );
+  }
+
   // 현재 매칭 진행 중 → 탐색 피드 잠금
   if (activeMatch) {
     return (
@@ -342,7 +402,8 @@ export default function HomePage() {
         <div className="pt-24">
           <MatchLockBanner
             match={activeMatch}
-            onGoToMatch={() => router.push(`/chat/${activeMatch.match_id}`)}
+            onGoToMatch={() => router.push('/matches')}
+            isDemo={isAdmin}
           />
         </div>
       </div>
@@ -350,12 +411,23 @@ export default function HomePage() {
   }
 
   if (!profile) {
+    // 다음 날 오전 10시까지 남은 시간 계산
+    const now = new Date();
+    const next = new Date(now);
+    next.setDate(now.getDate() + (now.getHours() >= 10 ? 1 : 0));
+    next.setHours(10, 0, 0, 0);
+    const diffMs = next.getTime() - now.getTime();
+    const diffH  = Math.floor(diffMs / 3_600_000);
+    const diffM  = Math.floor((diffMs % 3_600_000) / 60_000);
+    const timeLeft = diffH > 0 ? `${diffH}시간 ${diffM}분 후` : `${diffM}분 후`;
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-white px-8">
         <div className="text-4xl">✨</div>
         <p className="text-base font-medium text-gray-900 text-center">오늘의 프로필을 모두 봤어요</p>
         <p className="text-sm text-gray-400 text-center leading-relaxed">
-          내일 새로운 인연이 기다리고 있어요.<br />좋아요를 보낸 분들의 답장을 확인해보세요.
+          새 프로필은 내일 오전 10시에 업데이트돼요.<br />
+          <span className="text-[#0f0f0f] font-medium">{timeLeft}</span> 남았어요
         </p>
         <button
           onClick={() => router.push('/matches')}

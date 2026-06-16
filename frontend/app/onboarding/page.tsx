@@ -742,22 +742,26 @@ export default function OnboardingPage() {
     else router.push('/');
   };
 
-  const STEP_LABELS: Record<Step, string> = {
-    phone: '전화번호', otp: 'OTP 인증', basic: '기본 정보', survey: '가치관', done: '완료',
-  };
+  // 'done' 제외한 실제 단계 순서
+  const VISIBLE_STEPS: Step[] = ['phone', 'otp', 'basic', 'survey'];
+  const stepNumber = VISIBLE_STEPS.indexOf(step) + 1;
+  const stepTotal  = VISIBLE_STEPS.length;
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
       {step !== 'done' && (
-        <div className="flex items-center gap-4 px-6 pt-14 pb-4">
-          <button onClick={back} className="w-8 h-8 flex items-center justify-center -ml-1">
+        <div className="flex items-center gap-3 px-6 pt-14 pb-4">
+          <button onClick={back} className="w-8 h-8 flex items-center justify-center -ml-1 flex-shrink-0">
             <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24"
               stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
           <div className="flex-1"><ProgressBar current={step} /></div>
-          <span className="text-xs text-gray-300 w-14 text-right">{STEP_LABELS[step]}</span>
+          {/* 단계 카운터 — "02 / 04" */}
+          <span className="text-xs font-medium text-gray-400 w-12 text-right flex-shrink-0">
+            {String(stepNumber).padStart(2, '0')} / {String(stepTotal).padStart(2, '0')}
+          </span>
         </div>
       )}
 

@@ -50,13 +50,17 @@ const TABS = [
   },
 ] as const;
 
-// 바텀 탭바를 숨길 경로 (채팅, 온보딩, KYC 등)
-const HIDDEN_PATHS = ['/chat/', '/matches/topic/', '/verify', '/profile/setup', '/onboarding', '/'];
+// 바텀 탭바를 숨길 경로
+// '/' 는 startsWith로 체크하면 모든 경로에 매칭되므로 정확한 경로만 exact match
+const HIDDEN_EXACT = new Set(['/', '/onboarding', '/deposit', '/verify-docs', '/subscription']);
+const HIDDEN_PREFIX = ['/chat/', '/matches/topic/', '/verify/', '/profile/setup', '/onboarding/'];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
-  const isHidden = HIDDEN_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+  const isHidden =
+    HIDDEN_EXACT.has(pathname) ||
+    HIDDEN_PREFIX.some((p) => pathname.startsWith(p));
   if (isHidden) return null;
 
   return (

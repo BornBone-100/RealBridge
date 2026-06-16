@@ -48,7 +48,11 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user) {
+      // 인증 완료됐지만 로그인 안 된 경우 로딩 해제
+      if (!authLoading) setLoading(false);
+      return;
+    }
 
     const loadMatches = async () => {
       const supabase = getClient();

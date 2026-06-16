@@ -243,6 +243,24 @@ export default function DepositPage() {
                      active:scale-[0.98] transition-all">
           결제 수단 선택하기
         </button>
+
+        {/* 지원 결제 수단 */}
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-3">
+            {[
+              { label: '카드', icon: '💳' },
+              { label: '카카오페이', icon: '💛' },
+              { label: '네이버페이', icon: '🟢' },
+            ].map(m => (
+              <div key={m.label}
+                className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
+                <span>{m.icon}</span>
+                <span>{m.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-300">SSL 256-bit 암호화 · PortOne 안전결제</p>
+        </div>
       </div>
     </div>
   );

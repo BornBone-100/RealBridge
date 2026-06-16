@@ -11,11 +11,10 @@ interface Message {
 }
 
 const QUICK_REPLIES = [
-  '매칭 현황이 궁금해요',
-  '보증금 환불을 신청하고 싶어요',
-  '상대방에 대해 문의하고 싶어요',
-  '서류 인증 관련 문의',
-  '앱 이용 방법을 모르겠어요',
+  '매칭 현황 문의',
+  '보증금 환불 신청',
+  '서류 인증 문의',
+  '앱 이용 방법',
 ];
 
 const AUTO_REPLY = '안녕하세요! 3rd Vibe 매니저입니다 👋\n문의 주셔서 감사합니다. 영업 시간(평일 10:00~18:00) 내 빠르게 답변드리겠습니다.\n긴급 문의는 카카오채널 @3rdvibe로도 연락 주세요.';
@@ -141,11 +140,11 @@ export default function ConciergePage() {
       {messages.length <= 1 && (
         <div className="px-4 pb-2">
           <p className="text-xs text-gray-400 mb-2">자주 묻는 질문</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             {QUICK_REPLIES.map(q => (
               <button key={q} onClick={() => sendMessage(q)}
-                className="text-xs px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl
-                           text-gray-600 active:bg-gray-100 transition-colors">
+                className="flex-shrink-0 text-xs px-3.5 py-2 bg-gray-50 border border-gray-100 rounded-xl
+                           text-gray-600 active:bg-gray-100 transition-colors whitespace-nowrap">
                 {q}
               </button>
             ))}
