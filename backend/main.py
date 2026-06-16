@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── 새 라우터 임포트 ───────────────────────────────────────
-from routers import payment, verification, meetings, concierge
+from routers import payment, verification, meetings, concierge, demo
 from scheduler import start_scheduler, stop_scheduler
 
 
@@ -43,6 +43,7 @@ app.include_router(payment.router)
 app.include_router(verification.router)
 app.include_router(meetings.router)
 app.include_router(concierge.router)
+app.include_router(demo.router)
 
 app.add_middleware(
     CORSMiddleware,
