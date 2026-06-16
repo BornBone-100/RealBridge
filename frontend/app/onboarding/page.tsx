@@ -701,36 +701,36 @@ export default function OnboardingPage() {
       id:           user.id,
       phone:        user.phone ?? '',
       name:         form.name.trim(),
-      birth_year:   isNaN(birthYear) ? undefined : birthYear,
-      gender:       form.gender || null,
-      user_type:    form.userType || null,
-      occupation:   form.occupation.trim() || null,
-      company_name: form.companyName.trim() || null,
-      district:     form.busanDistrict || null,
-      mbti:         form.conflictStyle && form.planningStyle
-                      ? `??${form.conflictStyle}${form.planningStyle}`  // 부분 MBTI
-                      : null,
-      hobbies:      form.hobbies.length ? form.hobbies : null,
-      date_styles:  form.dateStyles.length ? form.dateStyles : null,
-      contact_freq: form.contactFreq || null,
-      bio:          form.selfIntro.trim() || null,
+      birth_year:   birthYear,
+      gender:       form.gender as 'male' | 'female',
+      user_type:    form.userType || undefined,
+      occupation:   form.occupation.trim() || undefined,
+      company_name: form.companyName.trim() || undefined,
+      district:     form.busanDistrict || undefined,
+      mbti:         (form.conflictStyle && form.planningStyle)
+                      ? `??${form.conflictStyle}${form.planningStyle}`
+                      : undefined,
+      hobbies:      form.hobbies.length ? form.hobbies : undefined,
+      date_styles:  form.dateStyles.length ? form.dateStyles : undefined,
+      contact_freq: form.contactFreq || undefined,
+      bio:          form.selfIntro.trim() || undefined,
       is_active:    true,
     }, { onConflict: 'id' });
 
     // surveys 테이블 저장
     await supabase.from('surveys').upsert({
       user_id:           user.id,
-      allow_cross_type:  form.allowCrossType === 'yes' ? true : form.allowCrossType === 'no' ? false : null,
-      max_age_diff:      form.maxAgeDiff === 'any' ? 99 : form.maxAgeDiff ? parseInt(form.maxAgeDiff) : null,
-      smoking_ok:        form.smokingOk === 'ok' ? true : form.smokingOk === 'no' ? false : null,
-      religion_pref:     form.religionPref || null,
-      drinking_level:    form.drinkingLevel || null,
-      conflict_style:    form.conflictStyle || null,
-      planning_style:    form.planningStyle || null,
-      busan_favorite_place: form.busanFavoritePlace || null,
-      relationship_value:   form.relationshipValue || null,
-      preferred_date_styles: form.dateStyles.length ? form.dateStyles : null,
-      contact_frequency: form.contactFreq || null,
+      allow_cross_type:  form.allowCrossType === 'yes' ? true : form.allowCrossType === 'no' ? false : undefined,
+      max_age_diff:      form.maxAgeDiff === 'any' ? 99 : form.maxAgeDiff ? parseInt(form.maxAgeDiff) : undefined,
+      smoking_ok:        form.smokingOk === 'ok' ? true : form.smokingOk === 'no' ? false : undefined,
+      religion_pref:     form.religionPref || undefined,
+      drinking_level:    form.drinkingLevel || undefined,
+      conflict_style:    form.conflictStyle || undefined,
+      planning_style:    form.planningStyle || undefined,
+      busan_favorite_place: form.busanFavoritePlace || undefined,
+      relationship_value:   form.relationshipValue || undefined,
+      date_styles:        form.dateStyles.length ? form.dateStyles : undefined,
+      ideal_contact_freq: form.contactFreq || undefined,
     }, { onConflict: 'user_id' });
 
     await next();

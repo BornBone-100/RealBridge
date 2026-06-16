@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -37,7 +39,29 @@ export type Database = {
           match_id?: string
           sender_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "user_active_matches"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       concierge_messages: {
         Row: {
@@ -64,7 +88,15 @@ export type Database = {
           is_read?: boolean
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "concierge_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       date_milestones: {
         Row: {
@@ -127,7 +159,29 @@ export type Database = {
           proposed_location?: string | null
           status?: Database["public"]["Enums"]["milestone_status"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "date_milestones_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_milestones_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "user_active_matches"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "date_milestones_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feedback_surveys: {
         Row: {
@@ -169,7 +223,22 @@ export type Database = {
           user_id?: string
           want_next_date?: boolean | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "feedback_surveys_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "date_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_surveys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       icebreaker_cards: {
         Row: {
@@ -214,7 +283,15 @@ export type Database = {
           used?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "like_quotas_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matches: {
         Row: {
@@ -253,7 +330,29 @@ export type Database = {
           user_a_id?: string
           user_b_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "matches_stopped_by_fkey"
+            columns: ["stopped_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_user_b_id_fkey"
+            columns: ["user_b_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meetings: {
         Row: {
@@ -292,7 +391,22 @@ export type Database = {
           scheduled_at?: string | null
           status?: Database["public"]["Enums"]["meeting_status"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meetings_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "user_active_matches"
+            referencedColumns: ["match_id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -346,55 +460,98 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       surveys: {
         Row: {
+          allow_cross_type: boolean | null
           busan_district: string | null
+          busan_favorite_place: string | null
+          conflict_style: string | null
           created_at: string
           date_styles: string[] | null
           dealbreakers: string | null
+          drinking_level: string | null
           hobbies: string[] | null
           id: string
           ideal_contact_freq: string | null
+          max_age_diff: number | null
           mbti: Database["public"]["Enums"]["mbti_type"] | null
           personality_tags: string[] | null
+          planning_style: string | null
           relationship_goal: string | null
+          relationship_value: string | null
+          religion_pref: string | null
           self_intro: string | null
+          smoking_ok: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          allow_cross_type?: boolean | null
           busan_district?: string | null
+          busan_favorite_place?: string | null
+          conflict_style?: string | null
           created_at?: string
           date_styles?: string[] | null
           dealbreakers?: string | null
+          drinking_level?: string | null
           hobbies?: string[] | null
           id?: string
           ideal_contact_freq?: string | null
+          max_age_diff?: number | null
           mbti?: Database["public"]["Enums"]["mbti_type"] | null
           personality_tags?: string[] | null
+          planning_style?: string | null
           relationship_goal?: string | null
+          relationship_value?: string | null
+          religion_pref?: string | null
           self_intro?: string | null
+          smoking_ok?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          allow_cross_type?: boolean | null
           busan_district?: string | null
+          busan_favorite_place?: string | null
+          conflict_style?: string | null
           created_at?: string
           date_styles?: string[] | null
           dealbreakers?: string | null
+          drinking_level?: string | null
           hobbies?: string[] | null
           id?: string
           ideal_contact_freq?: string | null
+          max_age_diff?: number | null
           mbti?: Database["public"]["Enums"]["mbti_type"] | null
           personality_tags?: string[] | null
+          planning_style?: string | null
           relationship_goal?: string | null
+          relationship_value?: string | null
+          religion_pref?: string | null
           self_intro?: string | null
+          smoking_ok?: boolean | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "surveys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
@@ -416,27 +573,29 @@ export type Database = {
           phone: string
           profile_photo_url: string | null
           updated_at: string
+          user_type: Database["public"]["Enums"]["user_type"] | null
           verification_status: Database["public"]["Enums"]["verification_status"]
         }
         Insert: {
           bio?: string | null
-          birth_year?: number
+          birth_year: number
           company_name?: string | null
           contact_freq?: string | null
           created_at?: string
           date_styles?: string[] | null
           district?: string | null
-          gender?: Database["public"]["Enums"]["gender_type"]
+          gender: Database["public"]["Enums"]["gender_type"]
           hobbies?: string[] | null
           id?: string
           is_active?: boolean
           is_deposit_paid?: boolean
           mbti?: string | null
-          name?: string
+          name: string
           occupation?: string | null
-          phone?: string
+          phone: string
           profile_photo_url?: string | null
           updated_at?: string
+          user_type?: Database["public"]["Enums"]["user_type"] | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Update: {
@@ -458,6 +617,7 @@ export type Database = {
           phone?: string
           profile_photo_url?: string | null
           updated_at?: string
+          user_type?: Database["public"]["Enums"]["user_type"] | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Relationships: []
@@ -476,7 +636,13 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: Database["public"]["Enums"]["verification_status"]
+          student_id_path: string | null
+          university_email: string | null
+          university_email_code: string | null
+          university_email_expires_at: string | null
+          university_email_verified: boolean | null
           user_id: string
+          user_type: Database["public"]["Enums"]["user_type"] | null
           work_email: string | null
           work_email_code: string | null
           work_email_expires_at: string | null
@@ -495,7 +661,13 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["verification_status"]
+          student_id_path?: string | null
+          university_email?: string | null
+          university_email_code?: string | null
+          university_email_expires_at?: string | null
+          university_email_verified?: boolean | null
           user_id: string
+          user_type?: Database["public"]["Enums"]["user_type"] | null
           work_email?: string | null
           work_email_code?: string | null
           work_email_expires_at?: string | null
@@ -514,13 +686,27 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["verification_status"]
+          student_id_path?: string | null
+          university_email?: string | null
+          university_email_code?: string | null
+          university_email_expires_at?: string | null
+          university_email_verified?: boolean | null
           user_id?: string
+          user_type?: Database["public"]["Enums"]["user_type"] | null
           work_email?: string | null
           work_email_code?: string | null
           work_email_expires_at?: string | null
           work_email_verified?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "verification_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -534,7 +720,22 @@ export type Database = {
           user_b_id: string | null
           user_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "matches_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_user_b_id_fkey"
+            columns: ["user_b_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -582,6 +783,7 @@ export type Database = {
         | "fee_only"
         | "refunded"
         | "fully_released"
+      user_type: "worker" | "student"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -591,6 +793,7 @@ export type Database = {
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
@@ -622,6 +825,56 @@ export type Tables<
       : never
     : never
 
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
@@ -638,3 +891,73 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      deposit_status: ["pending", "held", "released", "refunded"],
+      feedback_sentiment: ["up", "stay", "down"],
+      gender_type: ["male", "female"],
+      match_state: [
+        "waiting",
+        "active",
+        "success",
+        "stopped_no_fault",
+        "stopped_fault",
+        "cancelled",
+      ],
+      mbti_type: [
+        "INTJ",
+        "INTP",
+        "ENTJ",
+        "ENTP",
+        "INFJ",
+        "INFP",
+        "ENFJ",
+        "ENFP",
+        "ISTJ",
+        "ISFJ",
+        "ESTJ",
+        "ESFJ",
+        "ISTP",
+        "ISFP",
+        "ESTP",
+        "ESFP",
+      ],
+      meeting_status: ["scheduled", "completed", "cancelled"],
+      milestone_status: [
+        "pending",
+        "proposed",
+        "confirmed",
+        "completed",
+        "cancelled",
+      ],
+      payment_status: [
+        "pending",
+        "paid",
+        "fee_only",
+        "refunded",
+        "fully_released",
+      ],
+      user_type: ["worker", "student"],
+      verification_status: ["pending", "approved", "rejected"],
+    },
+  },
+} as const
