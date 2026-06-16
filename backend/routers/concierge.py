@@ -41,14 +41,14 @@ async def send_solapi_sms(to: str, text: str) -> bool:
 
     to = _normalize_phone(to)
 
-    timestamp = str(int(datetime.now(timezone.utc).timestamp() * 1000))
-    salt = os.urandom(16).hex()
+    date_str  = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    salt      = os.urandom(16).hex()
     signature = hmac.new(
         SOLAPI_API_SECRET.encode(),
-        f"{timestamp}{salt}".encode(),
+        f"{date_str}{salt}".encode(),
         hashlib.sha256
     ).hexdigest()
-    auth = f"HMAC-SHA256 apiKey={SOLAPI_API_KEY}, date={timestamp}, salt={salt}, signature={signature}"
+    auth = f"HMAC-SHA256 apiKey={SOLAPI_API_KEY}, date={date_str}, salt={salt}, signature={signature}"
 
     payload = {
         "message": {
