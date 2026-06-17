@@ -17,6 +17,8 @@ const QUICK_REPLIES = [
   '보증금 환불 신청',
   '서류 인증 문의',
   '앱 이용 방법',
+  '건의사항 전달',
+  '불만 접수',
 ];
 
 const WELCOME_MSG: Message = {
