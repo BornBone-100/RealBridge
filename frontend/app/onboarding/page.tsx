@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { sendPhoneOtp, verifyPhoneOtp, getClient } from '@/lib/supabase';
+import { sendPhoneOtp, verifyPhoneOtp, getClient, setSavedPhone } from '@/lib/supabase';
 
 // ── 타입 ──────────────────────────────────────────────────
 type Step      = 'phone' | 'otp' | 'basic' | 'survey' | 'done';
@@ -791,6 +791,9 @@ export default function OnboardingPage() {
 
       {step === 'phone'  && <StepPhone  form={form} setForm={setForm} onNext={e164 => { setE164Phone(e164); next(); }} />}
       {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={async () => {
+        // OTP 인증 성공 → 전화번호를 localStorage에 저장 (이후 자동 재로그인에 사용)
+        setSavedPhone(e164Phone);
+
         const supabase = getClient();
         const { data: { user: u } } = await supabase.auth.getUser();
         if (u) {

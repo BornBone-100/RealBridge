@@ -62,7 +62,25 @@ export async function verifyPhoneOtp(phone: string, token: string) {
   return supabase.auth.verifyOtp({ phone, token, type: 'sms' })
 }
 
-/** 로그아웃 */
+/** 로그아웃 (세션 삭제, 전화번호는 localStorage에 유지) */
 export async function signOut() {
   return supabase.auth.signOut()
+}
+
+// ── 저장된 전화번호 (e.164 형식) ──────────────────────────────
+const SAVED_PHONE_KEY = '3rdvibe-saved-phone'
+
+export function getSavedPhone(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SAVED_PHONE_KEY)
+}
+
+export function setSavedPhone(phone: string) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(SAVED_PHONE_KEY, phone)
+}
+
+export function clearSavedPhone() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(SAVED_PHONE_KEY)
 }

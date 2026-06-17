@@ -154,10 +154,25 @@ export default function ProfilePage() {
           ))}
         </div>
 
+        {/* 카카오톡 채널 문의하기 */}
+        {process.env.NEXT_PUBLIC_KAKAO_CHANNEL_URL && (
+          <a
+            href={process.env.NEXT_PUBLIC_KAKAO_CHANNEL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 mt-4 mb-1
+                       bg-[#FEE500] text-[#3A1D1D] rounded-2xl py-3.5 text-sm font-semibold
+                       active:opacity-80 transition-opacity"
+          >
+            <span className="text-base">💬</span>
+            카카오톡으로 문의하기
+          </a>
+        )}
+
         {/* 로그아웃 */}
         <button
           onClick={handleSignOut}
-          className="w-full text-center text-sm text-gray-300 py-5 mt-2">
+          className="w-full text-center text-sm text-gray-300 py-5 mt-1">
           로그아웃
         </button>
       </div>

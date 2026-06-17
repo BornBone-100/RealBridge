@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from database import get_admin_db
+from services.kakao_notify import notify_meeting
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
@@ -154,6 +155,25 @@ async def schedule_meeting(req: ScheduleMeetingRequest, db=Depends(get_admin_db)
             "scheduled_at": req.scheduled_at,
             "status": "scheduled",
         }).execute()
+
+    # 양쪽 유저에게 만남 일정 알림톡 발송
+    match_res = db.table("matches").select("user_a_id, user_b_id").eq("id", req.match_id).single().execute()
+    if match_res.data:
+        # scheduled_at 포맷: "2025-06-20T19:00:00" → "6월 20일 19:00"
+        try:
+            dt = datetime.fromisoformat(req.scheduled_at.replace("Z", "+00:00"))
+            date_str = dt.strftime("%-m월 %-d일 %H:%M")
+        except Exception:
+            date_str = req.scheduled_at
+
+        for uid in [match_res.data["user_a_id"], match_res.data["user_b_id"]]:
+            u = db.table("users").select("phone, name").eq("id", uid).maybe_single().execute()
+            if u.data and u.data.get("phone"):
+                import asyncio
+                asyncio.create_task(
+                    notify_meeting(u.data["phone"], u.data["name"] or "회원",
+                                   date_str, req.location)
+                )
 
     return {"success": True}
 
