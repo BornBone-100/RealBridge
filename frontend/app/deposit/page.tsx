@@ -136,7 +136,7 @@ export default function DepositPage() {
 
       window.IMP.request_pay(
         {
-          pg:           'tosspayments', // 포트원 대시보드 연결 채널 (실연동 채널 추가 후 변경)
+          pg:           'html5_inicis', // KG이니시스 (테스트: INIpayTest, 실연동 후 동일 pg 유지)
           pay_method:   pgMethod[method],
           merchant_uid: merchantUid,
           name:         '3rd Vibe 매칭비 + 보증금',
