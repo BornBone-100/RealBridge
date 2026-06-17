@@ -6,21 +6,29 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClient } from '@/lib/supabase';
 
-// 토스페이먼츠 V1 CDN 타입
+// 포트원 V1 (iamport) CDN 타입
 declare global {
   interface Window {
-    TossPayments?: (clientKey: string) => {
-      requestPayment: (method: string, params: Record<string, unknown>) => void;
+    IMP?: {
+      init: (merchantUid: string) => void;
+      request_pay: (params: Record<string, unknown>, callback?: (rsp: PortOneResponse) => void) => void;
     };
   }
 }
 
-const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ?? '';
+interface PortOneResponse {
+  success: boolean;
+  imp_uid: string;
+  merchant_uid: string;
+  error_msg?: string;
+}
+
+const IMP_KEY = process.env.NEXT_PUBLIC_PORTONE_IMP_KEY ?? '';
 
 // 금액 상수
-const SERVICE_FEE = 15_000;   // 매칭비 (소멸)
-const DEPOSIT    = 25_000;   // 보증금 (3회 만남 후 환불)
-const TOTAL      = SERVICE_FEE + DEPOSIT;  // 40,000원
+const SERVICE_FEE = 15_000;
+const DEPOSIT     = 25_000;
+const TOTAL       = SERVICE_FEE + DEPOSIT; // 40,000원
 
 // 필수 동의 항목
 const AGREEMENTS = [
@@ -52,24 +60,25 @@ const AGREEMENTS = [
 ] as const;
 
 type AgreementId = typeof AGREEMENTS[number]['id'];
-type PayStep = 'intro' | 'agreement' | 'pay' | 'processing' | 'done' | 'error';
+type PayStep = 'intro' | 'agreement' | 'pay' | 'processing' | 'error';
 
 export default function DepositPage() {
   const router = useRouter();
-  const [payStep,    setPayStep]    = useState<PayStep>('intro');
-  const [method,     setMethod]     = useState<'card' | 'kakao' | 'naver'>('card');
-  const [errorMsg,   setErrorMsg]   = useState('');
-  const [userName,   setUserName]   = useState('');
-  const [expanded,   setExpanded]   = useState<AgreementId | null>(null);
-  const [checked,    setChecked]    = useState<Set<AgreementId>>(new Set());
+  const [payStep,  setPayStep]  = useState<PayStep>('intro');
+  const [method,   setMethod]   = useState<'card' | 'kakao' | 'naver'>('card');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userId,   setUserId]   = useState('');
+  const [expanded, setExpanded] = useState<AgreementId | null>(null);
+  const [checked,  setChecked]  = useState<Set<AgreementId>>(new Set());
   const allChecked = checked.size === AGREEMENTS.length;
 
-  // 토스 SDK CDN 로드
+  // 포트원 SDK CDN 로드
   useEffect(() => {
-    if (document.getElementById('toss-sdk')) return;
+    if (document.getElementById('portone-sdk')) return;
     const script = document.createElement('script');
-    script.id  = 'toss-sdk';
-    script.src = 'https://js.tosspayments.com/v1/payment';
+    script.id    = 'portone-sdk';
+    script.src   = 'https://cdn.iamport.kr/v1/iamport.js';
     script.async = true;
     document.head.appendChild(script);
   }, []);
@@ -79,6 +88,7 @@ export default function DepositPage() {
     const supabase = getClient();
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
+      setUserId(data.user.id);
       const { data: profile } = await supabase
         .from('users').select('name').eq('id', data.user.id).single();
       if (profile?.name) setUserName(profile.name);
@@ -99,12 +109,12 @@ export default function DepositPage() {
   };
 
   const handlePay = async () => {
-    if (!window.TossPayments) {
+    if (!window.IMP) {
       setErrorMsg('결제 모듈 로딩 중입니다. 잠시 후 다시 시도해 주세요.');
       setPayStep('error');
       return;
     }
-    if (!TOSS_CLIENT_KEY) {
+    if (!IMP_KEY) {
       setErrorMsg('결제 설정 오류입니다. 관리자에게 문의해 주세요.');
       setPayStep('error');
       return;
@@ -113,29 +123,39 @@ export default function DepositPage() {
     setPayStep('processing');
 
     try {
-      const supabase = getClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('로그인이 필요합니다.');
+      window.IMP.init(IMP_KEY);
 
-      const orderId = `3rdvibe-${user.id.slice(0, 8)}-${Date.now()}`;
-      const tossPayments = window.TossPayments(TOSS_CLIENT_KEY);
+      const merchantUid = `3rdvibe-${userId.slice(0, 8)}-${Date.now()}`;
+      const redirectUrl = `${window.location.origin}/deposit/success`;
 
-      const baseParams = {
-        amount:       TOTAL,
-        orderId,
-        orderName:    '3rd Vibe 매칭비 + 보증금',
-        customerName: userName || '회원',
-        successUrl:   `${window.location.origin}/deposit/success`,
-        failUrl:      `${window.location.origin}/deposit/fail`,
+      const pgMethod: Record<string, string> = {
+        card:  'card',
+        kakao: 'kakaopay',
+        naver: 'naverpay',
       };
 
-      if (method === 'kakao') {
-        tossPayments.requestPayment('카카오페이', baseParams);
-      } else if (method === 'naver') {
-        tossPayments.requestPayment('네이버페이', baseParams);
-      } else {
-        tossPayments.requestPayment('카드', baseParams);
-      }
+      window.IMP.request_pay(
+        {
+          pg:           'html5_inicis', // 포트원 대시보드 채널 설정에 따라 변경
+          pay_method:   pgMethod[method],
+          merchant_uid: merchantUid,
+          name:         '3rd Vibe 매칭비 + 보증금',
+          amount:       TOTAL,
+          buyer_name:   userName || '회원',
+          m_redirect_url: redirectUrl,  // 모바일 리다이렉트
+        },
+        (rsp: PortOneResponse) => {
+          // 데스크탑 콜백
+          if (rsp.success) {
+            router.push(
+              `/deposit/success?imp_uid=${rsp.imp_uid}&merchant_uid=${merchantUid}`
+            );
+          } else {
+            setErrorMsg(rsp.error_msg ?? '결제가 취소되었습니다.');
+            setPayStep('error');
+          }
+        }
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '결제 처리 중 오류가 발생했습니다.';
       setErrorMsg(msg);
@@ -252,7 +272,7 @@ export default function DepositPage() {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-gray-300">SSL 256-bit 암호화 · 토스페이먼츠 안전결제</p>
+          <p className="text-[11px] text-gray-300">SSL 256-bit 암호화 · 포트원 안전결제</p>
         </div>
       </div>
     </div>
@@ -293,7 +313,6 @@ export default function DepositPage() {
 
         <div className="h-px bg-gray-100 mb-4" />
 
-        {/* 개별 동의 항목 */}
         <div className="space-y-2 mb-8">
           {AGREEMENTS.map(item => {
             const isChecked = checked.has(item.id);
@@ -360,7 +379,6 @@ export default function DepositPage() {
       </div>
 
       <div className="flex-1 px-6 pb-10">
-        {/* 금액 요약 */}
         <div className="flex items-center justify-between bg-gray-50 rounded-2xl px-5 py-4 mb-6">
           <div>
             <p className="text-xs text-gray-400">결제 금액</p>
@@ -399,7 +417,7 @@ export default function DepositPage() {
         </div>
 
         <p className="text-xs text-gray-400 text-center mb-4">
-          토스페이먼츠 · SSL 256-bit 보안 결제
+          포트원 · SSL 256-bit 보안 결제
         </p>
 
         <button onClick={handlePay}

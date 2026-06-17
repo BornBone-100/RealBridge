@@ -8,25 +8,32 @@ import { useRouter, useSearchParams } from 'next/navigation';
 function SuccessContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading');
+  const [status, setStatus]     = useState<'loading' | 'done' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    const paymentKey = params.get('paymentKey');
-    const orderId    = params.get('orderId');
-    const amount     = params.get('amount');
+    // 포트원 V1 파라미터 (모바일 리다이렉트 + 데스크탑 콜백 후 라우팅)
+    const impUid      = params.get('imp_uid');
+    const merchantUid = params.get('merchant_uid');
+    const impSuccess  = params.get('imp_success');
 
-    if (!paymentKey || !orderId || !amount) {
+    // 모바일 리다이렉트 실패
+    if (impSuccess === 'false') {
+      setErrorMsg(params.get('error_msg') ?? '결제가 취소되었습니다.');
+      setStatus('error');
+      return;
+    }
+
+    if (!impUid || !merchantUid) {
       setErrorMsg('결제 정보가 올바르지 않습니다.');
       setStatus('error');
       return;
     }
 
-    // 백엔드 검증 + DB 저장
-    fetch('/api/payment/toss-confirm', {
+    fetch('/api/payment/portone-confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+      body: JSON.stringify({ imp_uid: impUid, merchant_uid: merchantUid }),
     })
       .then(async res => {
         if (!res.ok) {
@@ -72,7 +79,6 @@ function SuccessContent() {
         보통 3~5 영업일 내 첫 매칭을 안내드려요.
       </p>
 
-      {/* 영수증 */}
       <div className="w-full bg-gray-50 rounded-3xl p-5 mb-8 text-left space-y-3">
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">결제 내역</h3>
         <div className="flex justify-between text-sm">
