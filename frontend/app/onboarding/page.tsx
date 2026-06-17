@@ -684,6 +684,29 @@ export default function OnboardingPage() {
     busanFavoritePlace: '', relationshipValue: '',
   });
 
+  // 이미 세션이 있으면 핸드폰 인증 스킵
+  useEffect(() => {
+    const supabase = getClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from('users')
+        .select('name')
+        .eq('id', user.id)
+        .single()
+        .then(({ data: profile }) => {
+          if (profile?.name) {
+            // 프로필 완성된 기존 유저 → 홈으로
+            router.replace('/home');
+          } else {
+            // 세션은 있지만 프로필 미완성 → 기본정보 단계부터
+            setStep('basic');
+          }
+        });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const next = async () => {
     const idx = STEPS.indexOf(step);
     if (idx < STEPS.length - 1) setStep(STEPS[idx + 1]);
