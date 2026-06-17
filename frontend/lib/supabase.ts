@@ -17,6 +17,8 @@ export function createClient() {
   return _createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
       storageKey: '3rdvibe-auth',
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },

@@ -687,12 +687,13 @@ export default function OnboardingPage() {
   // 이미 세션이 있으면 핸드폰 인증 스킵
   useEffect(() => {
     const supabase = getClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+    // getSession(): 로컬 캐시 우선 → 만료 시 자동 refresh → 훨씬 안정적
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
       supabase
         .from('users')
         .select('name')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single()
         .then(({ data: profile }) => {
           if (profile?.name) {
