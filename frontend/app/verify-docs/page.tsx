@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClient } from '@/lib/supabase';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // ── 타입 ──────────────────────────────────────────────────
 type UserTrack = 'worker' | 'student';
@@ -33,6 +34,11 @@ const isAcKr = (email: string) => email.trim().toLowerCase().endsWith('.ac.kr');
 
 export default function VerifyDocsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useCurrentUser();
+
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/onboarding');
+  }, [authLoading, user, router]);
 
   const [track, setTrack] = useState<UserTrack | null>(null);
 

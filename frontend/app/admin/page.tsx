@@ -7,7 +7,9 @@
  * 탭: 인증 심사 / 신고 유저 / 스캠 감지 로그 / 미해결 알림
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // ── 타입 ──────────────────────────────────────────────────────
 type AccountStatus = 'active' | 'pending' | 'banned' | 'suspended';
@@ -391,12 +393,21 @@ function VerifyPanel({ items }: { items: VerifyItem[] }) {
 
 // ── 메인 대시보드 ─────────────────────────────────────────────
 export default function AdminDashboard() {
+  const router = useRouter();
+  const { user, profile, loading: authLoading } = useCurrentUser();
+
   const [tab,     setTab]     = useState<Tab>('verify');
   const [users,   setUsers]   = useState<UserRow[]>(MOCK_USERS);
   const [logs]                = useState<ScamLog[]>(MOCK_LOGS);
   const [alerts,  setAlerts]  = useState<AdminAlert[]>(MOCK_ALERTS);
   const [loading, setLoading] = useState<string | null>(null);
   const [toast,   setToast]   = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.replace('/'); return; }
+    if (profile && !profile.is_admin) { router.replace('/home'); return; }
+  }, [authLoading, user, profile, router]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -428,6 +439,12 @@ export default function AdminDashboard() {
     setLoading(null);
     showToast('계정이 복구되었습니다');
   }, []);
+
+  if (authLoading || !user || (profile && !profile.is_admin)) {
+    return <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+    </div>;
+  }
 
   const unresolvedAlerts = alerts.filter(a => a.status === 'unresolved');
   const pendingUsers     = users.filter(u => u.status === 'pending');

@@ -22,6 +22,7 @@ export interface UserProfile {
   verification_status: string | null;
   is_deposit_paid: boolean | null;
   is_active: boolean | null;
+  is_admin: boolean | null;
 }
 
 export function useCurrentUser() {
@@ -35,7 +36,7 @@ export function useCurrentUser() {
     const loadProfile = async (userId: string) => {
       const { data } = await supabase
         .from('users')
-        .select('id, name, phone, birth_year, gender, occupation, company_name, district, mbti, hobbies, date_styles, contact_freq, bio, profile_photo_url, verification_status, is_deposit_paid, is_active')
+        .select('id, name, phone, birth_year, gender, occupation, company_name, district, mbti, hobbies, date_styles, contact_freq, bio, profile_photo_url, verification_status, is_deposit_paid, is_active, is_admin')
         .eq('id', userId)
         .single();
       setProfile(data as UserProfile | null);

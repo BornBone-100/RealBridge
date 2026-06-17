@@ -23,7 +23,7 @@ const QUICK_REPLIES = [
 
 const WELCOME_MSG: Message = {
   id: 'welcome',
-  content: '안녕하세요! 3rd Vibe 매니저입니다 👋\n문의 주셔서 감사합니다. 영업 시간(평일 10:00~18:00) 내 빠르게 답변드리겠습니다.\n긴급 문의는 카카오채널 @3rdvibe로도 연락 주세요.',
+  content: '안녕하세요! 3rd Vibe 매니저입니다 👋\n문의 주셔서 감사합니다. 영업 시간(평일 10:00~18:00) 내 빠르게 답변드리겠습니다.\n긴급 문의는 카카오채널 @balibridge로도 연락 주세요.',
   isFromAdmin: true,
   createdAt: new Date(),
 };
@@ -44,7 +44,7 @@ export default function ConciergePage() {
 
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { router.replace('/onboarding'); return; }
       setUserId(user.id);
 
       // 기존 메시지 불러오기

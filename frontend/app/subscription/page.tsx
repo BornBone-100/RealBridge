@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // ── 플랜 데이터 ─────────────────────────────────────────
 type BillingCycle = 'monthly' | 'yearly';
@@ -76,8 +77,19 @@ function TruenoteBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
 // ── 메인 ────────────────────────────────────────────────
 export default function SubscriptionPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useCurrentUser();
   const [billing, setBilling] = useState<BillingCycle>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/onboarding');
+  }, [authLoading, user, router]);
+
+  if (authLoading || !user) {
+    return <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+    </div>;
+  }
 
   const yearlyDiscount = Math.round(
     ((PLANS.premium.price.monthly * 12 - PLANS.premium.price.yearly) /
