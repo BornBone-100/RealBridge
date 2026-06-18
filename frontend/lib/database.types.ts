@@ -309,9 +309,10 @@ export type Database = {
           new_intro: boolean
           new_message: boolean
           date_confirmed: boolean
-          feedback: boolean
+          feedback_reminder: boolean
           match_result: boolean
-          system: boolean
+          system_notice: boolean
+          sms_enabled: boolean
           user_id: string
         }
         Insert: {
@@ -320,9 +321,10 @@ export type Database = {
           new_intro?: boolean
           new_message?: boolean
           date_confirmed?: boolean
-          feedback?: boolean
+          feedback_reminder?: boolean
           match_result?: boolean
-          system?: boolean
+          system_notice?: boolean
+          sms_enabled?: boolean
           user_id: string
         }
         Update: {
@@ -331,9 +333,10 @@ export type Database = {
           new_intro?: boolean
           new_message?: boolean
           date_confirmed?: boolean
-          feedback?: boolean
+          feedback_reminder?: boolean
           match_result?: boolean
-          system?: boolean
+          system_notice?: boolean
+          sms_enabled?: boolean
           user_id?: string
         }
         Relationships: []
