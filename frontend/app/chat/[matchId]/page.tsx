@@ -130,6 +130,71 @@ function MessageBubble({ msg, showTranslation, onToggleTranslation }: {
   );
 }
 
+// ── 아이스브레이킹 카드 ──────────────────────────────────────
+function IcebreakerBubble({ content, onReply }: {
+  content: string;
+  onReply: (q: string) => void;
+}) {
+  // content 형식: "[icebreaker:morning]☀️ 질문내용" 또는 "[icebreaker:afternoon]🍱 질문내용"
+  const isMorning = content.includes('[icebreaker:morning]');
+  const clean = content.replace(/\[icebreaker:(morning|afternoon)\]/, '').trim();
+  // 이모지와 질문 분리
+  const emojiMatch = clean.match(/^(\p{Emoji_Presentation}|\p{Emoji}️)/u);
+  const emoji = emojiMatch ? emojiMatch[0] : '💬';
+  const question = clean.replace(/^(\p{Emoji_Presentation}|\p{Emoji}️)\s*/u, '').trim();
+
+  return (
+    <div className="flex justify-center px-2">
+      <div className={`w-full max-w-[88%] rounded-3xl overflow-hidden shadow-sm
+        ${isMorning
+          ? 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100'
+          : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100'}`}>
+        {/* 상단 라벨 */}
+        <div className={`flex items-center gap-1.5 px-4 pt-3 pb-1
+          ${isMorning ? 'text-amber-500' : 'text-blue-500'}`}>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+          </svg>
+          <span className="text-[10px] font-semibold tracking-wide uppercase">
+            3rd Vibe · {isMorning ? '오전 대화 질문' : '오후 대화 질문'}
+          </span>
+        </div>
+
+        {/* 질문 본문 */}
+        <div className="px-4 pt-2 pb-3">
+          <div className="flex items-start gap-2">
+            <span className="text-2xl leading-tight flex-shrink-0">{emoji}</span>
+            <p className="text-sm text-gray-800 leading-relaxed font-medium pt-0.5">
+              {question}
+            </p>
+          </div>
+        </div>
+
+        {/* 답하기 버튼 */}
+        <div className={`px-4 pb-3`}>
+          <button
+            onClick={() => onReply(question)}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full
+              transition-all active:scale-95
+              ${isMorning
+                ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
+                : 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20'}`}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+            </svg>
+            답하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 타이핑 인디케이터 ────────────────────────────────────────
 function TypingIndicator() {
   return (
@@ -332,6 +397,12 @@ export default function ChatPage() {
     inputRef.current?.focus();
   };
 
+  // 아이스브레이킹 질문 "답하기" 클릭 핸들러
+  const handleIcebreakerReply = (question: string) => {
+    setInputText(`Q. ${question}\n\n`);
+    inputRef.current?.focus();
+  };
+
   // 로딩
   if (authLoading || loadingPartner) {
     return (
@@ -509,14 +580,22 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {messages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              msg={msg}
-              showTranslation={translationOpen[msg.id] ?? true}
-              onToggleTranslation={() => toggleTranslation(msg.id)}
-            />
-          ))}
+          {messages.map((msg) =>
+            msg.messageType === 'icebreaker' ? (
+              <IcebreakerBubble
+                key={msg.id}
+                content={msg.original}
+                onReply={handleIcebreakerReply}
+              />
+            ) : (
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                showTranslation={translationOpen[msg.id] ?? true}
+                onToggleTranslation={() => toggleTranslation(msg.id)}
+              />
+            )
+          )}
 
           {status.otherTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />

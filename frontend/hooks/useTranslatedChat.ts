@@ -23,6 +23,7 @@ export interface TranslatedMessage {
   isPending:      boolean;
   slangWarning:   string | null;
   type:           'message' | 'system';
+  messageType:    'text' | 'icebreaker' | 'system';
 }
 
 export interface ChatStatus {
@@ -64,26 +65,30 @@ export function useTranslatedChat({
     const loadInitial = async () => {
       const { data, error } = await supabase
         .from('chat_messages')
-        .select('id, sender_id, content, created_at, is_read')
+        .select('id, sender_id, content, created_at, is_read, message_type')
         .eq('match_id', roomId)
         .order('created_at', { ascending: true })
         .limit(100);
 
       if (error || !data) return;
 
-      const mapped: TranslatedMessage[] = data.map((row) => ({
-        id:             row.id,
-        senderId:       row.sender_id,
-        original:       row.content,
-        originalLang:   'KO',
-        translated:     null,
-        translatedLang: null,
-        isMe:           row.sender_id === userId,
-        timestamp:      row.created_at,
-        isPending:      false,
-        slangWarning:   null,
-        type:           'message' as const,
-      }));
+      const mapped: TranslatedMessage[] = data.map((row) => {
+        const msgType = (row.message_type ?? 'text') as 'text' | 'icebreaker' | 'system';
+        return {
+          id:             row.id,
+          senderId:       row.sender_id,
+          original:       row.content,
+          originalLang:   'KO',
+          translated:     null,
+          translatedLang: null,
+          isMe:           row.sender_id === userId,
+          timestamp:      row.created_at,
+          isPending:      false,
+          slangWarning:   null,
+          type:           msgType === 'icebreaker' ? 'system' as const : 'message' as const,
+          messageType:    msgType,
+        };
+      });
 
       setMessages(mapped);
     };
@@ -104,7 +109,9 @@ export function useTranslatedChat({
         (payload) => {
           const row = payload.new as {
             id: string; sender_id: string; content: string; created_at: string;
+            message_type?: string;
           };
+          const msgType = (row.message_type ?? 'text') as 'text' | 'icebreaker' | 'system';
           const incoming: TranslatedMessage = {
             id:             row.id,
             senderId:       row.sender_id,
@@ -116,7 +123,8 @@ export function useTranslatedChat({
             timestamp:      row.created_at,
             isPending:      false,
             slangWarning:   null,
-            type:           'message',
+            type:           msgType === 'icebreaker' ? 'system' : 'message',
+            messageType:    msgType,
           };
           setMessages((prev) => {
             // 낙관적 메시지 교체 또는 중복 방지
@@ -161,6 +169,7 @@ export function useTranslatedChat({
       isPending:      true,
       slangWarning:   null,
       type:           'message',
+      messageType:    'text',
     };
     setMessages((prev) => [...prev, optimistic]);
 

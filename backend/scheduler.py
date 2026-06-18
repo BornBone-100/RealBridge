@@ -30,6 +30,33 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
+# ── 아이스브레이킹 질문 풀 ────────────────────────────────────
+MORNING_QUESTIONS = [
+    ("☀️", "오늘 아침 기분이 어때요? 오늘 하루 기대되는 게 있나요?"),
+    ("🌅", "아침에 일어나서 제일 먼저 하는 루틴이 있어요?"),
+    ("☕", "오늘 아침 뭐 드셨어요? 요즘 즐겨 먹는 아침 메뉴가 있으면 알려줘요!"),
+    ("🌸", "요즘 가장 설레는 일이 뭔가요? 작은 것도 괜찮아요 😊"),
+    ("🎵", "오늘 아침 기분과 어울리는 노래가 있나요?"),
+    ("🌿", "요즘 아침에 일어나기 힘든 편이에요, 아니면 아침형 인간인 편이에요?"),
+    ("🌊", "오늘 날씨가 어때요? 부산 바다 보고 싶어지는 날씨인가요?"),
+    ("📖", "아침에 뉴스나 SNS 중에 어떤 걸 먼저 열어요?"),
+    ("🍵", "오늘 하루 중 가장 기대하는 시간이 언제예요?"),
+    ("💭", "요즘 자주 생각나는 것이 있나요? 음식이든 장소든 사람이든!"),
+]
+
+AFTERNOON_QUESTIONS = [
+    ("🍱", "점심 뭐 드셨어요? 부산에서 요즘 자주 가는 맛집이 있으면 추천해줘요!"),
+    ("🌊", "주말에 해운대랑 광안리 중에 어디가 더 좋아요?"),
+    ("🏄", "요즘 스트레스 받을 때 푸는 방법이 뭔가요?"),
+    ("🍜", "부산 음식 중에 가장 좋아하는 것 TOP3가 뭐예요?"),
+    ("🎬", "최근에 본 영화나 드라마 중 추천하고 싶은 게 있나요?"),
+    ("🌙", "퇴근하고 나서 보통 어떻게 시간을 보내요?"),
+    ("🏔️", "주말에 가장 좋아하는 코스가 뭐예요? 바다? 산? 카페 투어?"),
+    ("🎮", "요즘 빠져 있는 취미나 관심사가 있어요?"),
+    ("🍦", "부산에서 '여기는 꼭 가봐야 해' 싶은 디저트 가게 있나요?"),
+    ("✈️", "가장 최근에 다녀온 여행지가 어디예요? 또는 가고 싶은 곳은요?"),
+]
+
 SOLAPI_API_KEY    = os.getenv("SOLAPI_API_KEY", "")
 SOLAPI_API_SECRET = os.getenv("SOLAPI_API_SECRET", "")
 SENDER_PHONE      = os.getenv("SENDER_PHONE", "")
@@ -260,6 +287,71 @@ async def process_feedback_response(
     return {"no_action": True}
 
 
+# ── 아이스브레이킹 질문 발송 공통 함수 ──────────────────────
+async def _send_icebreaker(slot: str):
+    """
+    slot: 'morning' | 'afternoon'
+    활성 매칭 채팅방에 아이스브레이킹 질문을 시스템 메시지로 삽입한다.
+    오늘 해당 slot에 이미 발송된 방은 스킵.
+    """
+    import random
+    db = get_admin_db_direct()
+
+    questions = MORNING_QUESTIONS if slot == "morning" else AFTERNOON_QUESTIONS
+
+    # 활성 매칭 조회
+    matches_res = db.table("matches").select("id").in_(
+        "state", ["waiting", "active"]
+    ).execute()
+
+    if not matches_res.data:
+        logger.info(f"[Icebreaker/{slot}] 활성 매칭 없음")
+        return
+
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    now_str = datetime.now(timezone.utc).isoformat()
+    sent = 0
+
+    for match in matches_res.data:
+        match_id = match["id"]
+
+        # 오늘 이 slot 에 이미 발송했는지 확인
+        tag = f"[icebreaker:{slot}]"
+        dup = db.table("chat_messages").select("id").eq(
+            "match_id", match_id
+        ).eq("message_type", "icebreaker").gte(
+            "created_at", today_start
+        ).like("content", f"%{tag}%").limit(1).execute()
+
+        if dup.data:
+            continue  # 이미 발송
+
+        # 랜덤 질문 선택
+        emoji, question = random.choice(questions)
+        content = f"{tag}{emoji} {question}"
+
+        db.table("chat_messages").insert({
+            "match_id":     match_id,
+            "sender_id":    "system-icebreaker",
+            "content":      content,
+            "message_type": "icebreaker",
+            "is_read":      False,
+        }).execute()
+        sent += 1
+
+    logger.info(f"[Icebreaker/{slot}] {sent}개 매칭방에 질문 발송 완료")
+
+
+async def send_morning_icebreaker():
+    await _send_icebreaker("morning")
+
+
+async def send_afternoon_icebreaker():
+    await _send_icebreaker("afternoon")
+
+
 # ── 주간 소개팅 카운터 초기화 (매주 월요일 00:00 KST) ────
 async def reset_weekly_intro_count():
     """
@@ -290,8 +382,28 @@ def start_scheduler():
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        send_morning_icebreaker,
+        CronTrigger(hour=10, minute=0, timezone="Asia/Seoul"),
+        id="morning_icebreaker",
+        replace_existing=True,
+        misfire_grace_time=1800,
+    )
+    scheduler.add_job(
+        send_afternoon_icebreaker,
+        CronTrigger(hour=15, minute=0, timezone="Asia/Seoul"),
+        id="afternoon_icebreaker",
+        replace_existing=True,
+        misfire_grace_time=1800,
+    )
     scheduler.start()
-    logger.info("APScheduler 시작 — 매일 21:00 피드백 발송 / 매주 월요일 00:00 소개팅 카운터 초기화")
+    logger.info(
+        "APScheduler 시작 — "
+        "매일 10:00 오전 아이스브레이킹 / "
+        "매일 15:00 오후 아이스브레이킹 / "
+        "매일 21:00 데이트 피드백 / "
+        "매주 월요일 00:00 소개팅 카운터 초기화"
+    )
 
 
 def stop_scheduler():
