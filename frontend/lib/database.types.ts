@@ -191,6 +191,8 @@ export type Database = {
           id: string
           is_answered: boolean
           milestone_id: string
+          rating: number | null
+          responded_at: string | null
           sent_at: string | null
           sentiment: Database["public"]["Enums"]["feedback_sentiment"] | null
           stop_reason: string | null
@@ -204,6 +206,8 @@ export type Database = {
           id?: string
           is_answered?: boolean
           milestone_id: string
+          rating?: number | null
+          responded_at?: string | null
           sent_at?: string | null
           sentiment?: Database["public"]["Enums"]["feedback_sentiment"] | null
           stop_reason?: string | null
@@ -217,6 +221,8 @@ export type Database = {
           id?: string
           is_answered?: boolean
           milestone_id?: string
+          rating?: number | null
+          responded_at?: string | null
           sent_at?: string | null
           sentiment?: Database["public"]["Enums"]["feedback_sentiment"] | null
           stop_reason?: string | null
