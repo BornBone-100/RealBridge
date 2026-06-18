@@ -21,6 +21,7 @@ export function createClient() {
       detectSessionInUrl: true,   // OAuth 콜백 URL 자동 처리
       storageKey: '3rdvibe-auth',
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      flowType: 'pkce',           // PKCE flow 강제 (서버 /auth/callback 라우트와 일치)
     },
   })
 }
