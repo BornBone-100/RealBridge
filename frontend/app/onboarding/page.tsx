@@ -555,29 +555,35 @@ export default function OnboardingPage() {
   });
 
   // 소셜 로그인 후 세션 확인
+  // onAuthStateChange 사용: OAuth 콜백 URL 해시 파싱 완료 후 SIGNED_IN 이벤트를 수신
   useEffect(() => {
     const supabase = getClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        // 세션 없음 → 소셜 로그인 페이지로
-        router.replace('/');
-        return;
-      }
-      supabase
-        .from('users')
-        .select('name')
-        .eq('id', session.user.id)
-        .single()
-        .then(({ data: profile }) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+          if (!session) {
+            router.replace('/');
+            return;
+          }
+          const { data: profile } = await supabase
+            .from('users')
+            .select('name')
+            .eq('id', session.user.id)
+            .single();
+
           if (profile?.name) {
             // 프로필 완성된 기존 유저 → 홈으로
             router.replace('/home');
           } else {
-            // 세션은 있지만 프로필 미완성 → 기본정보 단계부터
+            // 신규 유저 → 기본정보 입력
             setStep('basic');
           }
-        });
-    });
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
