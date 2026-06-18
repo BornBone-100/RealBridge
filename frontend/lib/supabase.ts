@@ -3,27 +3,23 @@
  * ==================================
  * 브라우저/SSR 환경 모두 지원.
  * RLS는 Supabase Auth JWT로 자동 처리.
+ *
+ * ⚠️  OAuth PKCE 주의사항:
+ *   - createBrowserClient(@supabase/ssr)는 PKCE code_verifier를 쿠키에 저장
+ *   - 서버 /auth/callback 라우트가 쿠키에서 code_verifier를 읽어 code exchange 수행
+ *   - @supabase/supabase-js의 createClient는 localStorage에 저장 → 서버에서 못 읽음
  */
 
-import { createClient as _createSupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import type { Database } from './database.types'
 
 const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // ── 브라우저 클라이언트 (컴포넌트에서 사용) ───────────────────
-// localStorage에 세션을 저장 → 브라우저를 닫았다 열어도 로그인 유지
+// createBrowserClient: PKCE code_verifier를 쿠키에 저장 → 서버 route에서 교환 가능
 export function createClient() {
-  return _createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,   // OAuth 콜백 URL 자동 처리
-      storageKey: '3rdvibe-auth',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      flowType: 'pkce',           // PKCE flow 강제 (서버 /auth/callback 라우트와 일치)
-    },
-  })
+  return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY)
 }
 
 // ── 싱글톤 (훅/유틸에서 바로 사용) — lazy 초기화 ──────────────
