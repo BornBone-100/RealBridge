@@ -4,14 +4,14 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { sendPhoneOtp, verifyPhoneOtp, getClient, setSavedPhone } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
 
 // ── 타입 ──────────────────────────────────────────────────
-type Step      = 'phone' | 'otp' | 'basic' | 'survey' | 'done';
+type Step      = 'loading' | 'basic' | 'survey' | 'done';
 type UserType  = 'worker' | 'student' | '';
 type Gender    = 'male' | 'female' | '';
 
-const STEPS: Step[] = ['phone', 'otp', 'basic', 'survey', 'done'];
+const STEPS: Step[] = ['loading', 'basic', 'survey', 'done'];
 
 const MBTI_LIST = [
   'INTJ','INTP','ENTJ','ENTP',
@@ -43,8 +43,6 @@ const BUSAN_DISTRICTS = [
 ];
 
 interface FormData {
-  // 계정
-  phone: string; otp: string;
   // 기본
   name: string; birthYear: string; gender: Gender;
   userType: UserType;
@@ -210,143 +208,17 @@ const PHASE_COLORS: Record<number, { bg: string; text: string; bar: string }> = 
 
 // ── 진행 바 ───────────────────────────────────────────────
 function ProgressBar({ current }: { current: Step }) {
-  const idx = STEPS.indexOf(current);
+  const VISIBLE: Step[] = ['basic', 'survey', 'done'];
+  const idx = VISIBLE.indexOf(current);
   return (
     <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
       <div className="h-full bg-[#0f0f0f] rounded-full transition-all duration-500"
-        style={{ width: `${Math.round(((idx + 1) / STEPS.length) * 100)}%` }} />
+        style={{ width: `${Math.round(((idx + 1) / VISIBLE.length) * 100)}%` }} />
     </div>
   );
 }
 
-function toE164(phone: string): string {
-  return `+82${phone.replace(/\D/g, '').replace(/^0/, '')}`;
-}
-
-// ── STEP 1: 전화번호 ──────────────────────────────────────
-function StepPhone({ form, setForm, onNext }: {
-  form: FormData;
-  setForm: React.Dispatch<React.SetStateAction<FormData>>;
-  onNext: (e164: string) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const isValid = form.phone.replace(/\D/g, '').length >= 9;
-
-  const handleSend = async () => {
-    setError(''); setLoading(true);
-    const e164 = toE164(form.phone);
-    const { error: err } = await sendPhoneOtp(e164);
-    setLoading(false);
-    if (err) { setError(err.message || 'SMS 발송 실패. 잠시 후 다시 시도해 주세요.'); return; }
-    onNext(e164);
-  };
-
-  return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <div className="mb-8">
-        <p className="text-xs text-gray-400 mb-1">01 · 본인 인증</p>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">휴대폰 번호를<br />입력해 주세요</h2>
-        <p className="text-xs text-gray-400">실명 인증용 · 가상번호 불가</p>
-      </div>
-      <div className="flex gap-2 mb-2">
-        <div className="flex items-center px-3 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm text-gray-400">
-          🇰🇷 +82
-        </div>
-        <input value={form.phone}
-          onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-          placeholder="010-0000-0000" type="tel"
-          className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-sm
-                     outline-none focus:border-gray-300"
-          onKeyDown={e => e.key === 'Enter' && isValid && handleSend()} />
-      </div>
-      {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
-      <button onClick={handleSend} disabled={!isValid || loading}
-        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8">
-        {loading ? '발송 중...' : '인증번호 받기'}
-      </button>
-    </div>
-  );
-}
-
-// ── STEP 2: OTP ───────────────────────────────────────────
-function StepOTP({ form, setForm, e164Phone, onNext }: {
-  form: FormData;
-  setForm: React.Dispatch<React.SetStateAction<FormData>>;
-  e164Phone: string;
-  onNext: () => Promise<void>;
-}) {
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-  const [cooldown, setCooldown] = useState(30);
-  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown(c => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
-
-  const handleChange = (i: number, v: string) => {
-    const digits = v.replace(/\D/g, '').slice(-1);
-    const arr = form.otp.split('');
-    arr[i] = digits;
-    const next = arr.join('').slice(0, 6);
-    setForm(f => ({ ...f, otp: next }));
-    if (digits && i < 5) inputsRef.current[i + 1]?.focus();
-  };
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !form.otp[i] && i > 0) inputsRef.current[i - 1]?.focus();
-  };
-
-  const handleVerify = async () => {
-    setError(''); setLoading(true);
-    const { error: err } = await verifyPhoneOtp(e164Phone, form.otp);
-    setLoading(false);
-    if (err) { setError('인증번호가 올바르지 않습니다.'); return; }
-    await onNext();
-  };
-
-  return (
-    <div className="flex flex-col flex-1 px-6 pt-8">
-      <div className="mb-8">
-        <p className="text-xs text-gray-400 mb-1">01 · 본인 인증</p>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">인증번호를<br />입력해 주세요</h2>
-        <p className="text-xs text-gray-400">{e164Phone} 으로 발송됐습니다</p>
-      </div>
-      <div className="flex gap-2 justify-center mb-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <input key={i}
-            ref={el => { inputsRef.current[i] = el; }}
-            type="tel" maxLength={1} value={form.otp[i] ?? ''}
-            onChange={e => handleChange(i, e.target.value)}
-            onKeyDown={e => handleKeyDown(i, e)}
-            className={`w-11 h-14 text-center text-xl font-semibold rounded-2xl border-2 outline-none
-              transition-colors ${form.otp[i] ? 'border-[#0f0f0f] bg-gray-50' : 'border-gray-100 bg-gray-50'}`}
-          />
-        ))}
-      </div>
-      {error && <p className="text-xs text-red-500 text-center mb-2">{error}</p>}
-      <p className="text-xs text-gray-400 mb-8 text-center">
-        {cooldown > 0
-          ? <span className="text-gray-300">재발송 가능: {cooldown}초 후</span>
-          : <button onClick={async () => {
-              await sendPhoneOtp(e164Phone); setCooldown(30);
-              setForm(f => ({ ...f, otp: '' }));
-            }} className="underline">인증번호 재발송</button>}
-      </p>
-      <button onClick={handleVerify} disabled={form.otp.length < 6 || loading}
-        className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                   disabled:opacity-30 active:scale-[0.98] transition-all mt-auto mb-8">
-        {loading ? '확인 중...' : '인증 완료'}
-      </button>
-    </div>
-  );
-}
-
-// ── STEP 3: 기본 정보 (user_type 포함) ───────────────────
+// ── STEP 1: 기본 정보 (user_type 포함) ───────────────────
 function StepBasic({ form, setForm, onNext }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
@@ -672,10 +544,8 @@ function StepDone({ onContinue }: { onContinue: () => void }) {
 // ── 메인 온보딩 ───────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep]         = useState<Step>('phone');
-  const [e164Phone, setE164Phone] = useState('');
+  const [step, setStep] = useState<Step>('loading');
   const [form, setForm] = useState<FormData>({
-    phone: '', otp: '',
     name: '', birthYear: '', gender: '', userType: '', occupation: '', companyName: '',
     mbti: '', personalityTags: [], hobbies: [], dateStyles: [], busanDistrict: '', selfIntro: '',
     allowCrossType: '', maxAgeDiff: '', smokingOk: '', religionPref: '',
@@ -684,12 +554,15 @@ export default function OnboardingPage() {
     busanFavoritePlace: '', relationshipValue: '',
   });
 
-  // 이미 세션이 있으면 핸드폰 인증 스킵
+  // 소셜 로그인 후 세션 확인
   useEffect(() => {
     const supabase = getClient();
-    // getSession(): 로컬 캐시 우선 → 만료 시 자동 refresh → 훨씬 안정적
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return;
+      if (!session) {
+        // 세션 없음 → 소셜 로그인 페이지로
+        router.replace('/');
+        return;
+      }
       supabase
         .from('users')
         .select('name')
@@ -709,8 +582,9 @@ export default function OnboardingPage() {
   }, []);
 
   const next = async () => {
-    const idx = STEPS.indexOf(step);
-    if (idx < STEPS.length - 1) setStep(STEPS[idx + 1]);
+    const FLOW: Step[] = ['basic', 'survey', 'done'];
+    const idx = FLOW.indexOf(step);
+    if (idx < FLOW.length - 1) setStep(FLOW[idx + 1]);
   };
 
   const saveAndNext = async () => {
@@ -723,7 +597,7 @@ export default function OnboardingPage() {
     // users 테이블 업서트
     await supabase.from('users').upsert({
       id:           user.id,
-      phone:        user.phone ?? '',
+      phone:        user.phone ?? user.email ?? '',
       name:         form.name.trim(),
       birth_year:   birthYear,
       gender:       form.gender as 'male' | 'female',
@@ -761,15 +635,25 @@ export default function OnboardingPage() {
   };
 
   const back = () => {
-    const idx = STEPS.indexOf(step);
-    if (idx > 0) setStep(STEPS[idx - 1]);
+    const VISIBLE: Step[] = ['basic', 'survey'];
+    const idx = VISIBLE.indexOf(step);
+    if (idx > 0) setStep(VISIBLE[idx - 1]);
     else router.push('/');
   };
 
-  // 'done' 제외한 실제 단계 순서
-  const VISIBLE_STEPS: Step[] = ['phone', 'otp', 'basic', 'survey'];
+  // 실제 단계 순서 (loading, done 제외)
+  const VISIBLE_STEPS: Step[] = ['basic', 'survey'];
   const stepNumber = VISIBLE_STEPS.indexOf(step) + 1;
   const stepTotal  = VISIBLE_STEPS.length;
+
+  // 로딩 중
+  if (step === 'loading') {
+    return (
+      <div className="flex flex-col min-h-screen bg-white items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -782,33 +666,12 @@ export default function OnboardingPage() {
             </svg>
           </button>
           <div className="flex-1"><ProgressBar current={step} /></div>
-          {/* 단계 카운터 — "02 / 04" */}
           <span className="text-xs font-medium text-gray-400 w-12 text-right flex-shrink-0">
             {String(stepNumber).padStart(2, '0')} / {String(stepTotal).padStart(2, '0')}
           </span>
         </div>
       )}
 
-      {step === 'phone'  && <StepPhone  form={form} setForm={setForm} onNext={e164 => { setE164Phone(e164); next(); }} />}
-      {step === 'otp'    && <StepOTP    form={form} setForm={setForm} e164Phone={e164Phone} onNext={async () => {
-        // OTP 인증 성공 → 전화번호를 localStorage에 저장 (이후 자동 재로그인에 사용)
-        setSavedPhone(e164Phone);
-
-        const supabase = getClient();
-        const { data: { user: u } } = await supabase.auth.getUser();
-        if (u) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('verification_status, is_deposit_paid, name')
-            .eq('id', u.id)
-            .single();
-          if (profile?.verification_status === 'approved' && profile?.is_deposit_paid && profile?.name) {
-            router.replace('/home');
-            return;
-          }
-        }
-        next();
-      }} />}
       {step === 'basic'  && <StepBasic  form={form} setForm={setForm} onNext={next} />}
       {step === 'survey' && <StepSurvey form={form} setForm={setForm} onNext={saveAndNext} />}
       {step === 'done'   && <StepDone   onContinue={() => router.push('/verify-docs')} />}

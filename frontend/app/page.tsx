@@ -1,92 +1,37 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getClient, getSavedPhone, sendPhoneOtp, verifyPhoneOtp } from '@/lib/supabase';
-
-// 전화번호 마스킹: +821012345678 → 010-****-5678
-function maskPhone(e164: string): string {
-  const local = e164.startsWith('+82') ? '0' + e164.slice(3) : e164;
-  if (local.length === 11) {
-    return `${local.slice(0, 3)}-****-${local.slice(7)}`;
-  }
-  return '****';
-}
+import { getClient, signInWithGoogle, signInWithKakao } from '@/lib/supabase';
 
 export default function WelcomePage() {
   const router = useRouter();
-
-  // 'checking' | 'landing' | 'relogin'
-  const [view, setView] = useState<'checking' | 'landing' | 'relogin'>('checking');
-  const [savedPhone, setSavedPhoneState] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const [loading, setLoading] = useState<'google' | 'kakao' | null>(null);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const client = getClient();
-    client.auth.getSession().then(async ({ data: { session } }) => {
+    getClient().auth.getSession().then(({ data: { session } }) => {
       if (session) {
         router.replace('/home');
-        return;
-      }
-
-      // 세션 없음 → 저장된 전화번호 확인
-      const phone = getSavedPhone();
-      if (phone) {
-        setSavedPhoneState(phone);
-        // 자동 OTP 발송
-        try {
-          await sendPhoneOtp(phone);
-          setOtpSent(true);
-        } catch {
-          // OTP 발송 실패해도 relogin 화면은 표시
-        }
-        setView('relogin');
       } else {
-        setView('landing');
+        setChecking(false);
       }
     });
   }, [router]);
 
-  const handleOtpInput = (i: number, val: string) => {
-    if (!/^\d?$/.test(val)) return;
-    const next = [...otp];
-    next[i] = val;
-    setOtp(next);
-    if (val && i < 5) inputsRef.current[i + 1]?.focus();
+  const handleGoogle = async () => {
+    setLoading('google');
+    await signInWithGoogle();
+    // OAuth redirect 발생 — 이 이후 코드는 실행되지 않음
   };
 
-  const handleOtpKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[i] && i > 0) inputsRef.current[i - 1]?.focus();
+  const handleKakao = async () => {
+    setLoading('kakao');
+    await signInWithKakao();
+    // OAuth redirect 발생 — 이 이후 코드는 실행되지 않음
   };
 
-  const handleVerify = async () => {
-    const code = otp.join('');
-    if (code.length < 6) return;
-    setError(''); setLoading(true);
-    const { error: err } = await verifyPhoneOtp(savedPhone, code);
-    setLoading(false);
-    if (err) {
-      setError('인증번호가 올바르지 않습니다.');
-      return;
-    }
-    // 인증 성공 → 홈으로
-    router.replace('/home');
-  };
-
-  const handleResend = async () => {
-    setError('');
-    setOtp(['', '', '', '', '', '']);
-    await sendPhoneOtp(savedPhone);
-    setOtpSent(true);
-    inputsRef.current[0]?.focus();
-  };
-
-  // ── 로딩 중 ───────────────────────────────────────────────
-  if (view === 'checking') {
+  if (checking) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#0f0f0f]">
         <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
@@ -94,89 +39,16 @@ export default function WelcomePage() {
     );
   }
 
-  // ── 재로그인 화면 (저장된 번호로 OTP 자동 발송) ──────────────
-  if (view === 'relogin') {
-    return (
-      <div className="flex-1 flex flex-col bg-[#0f0f0f] text-white min-h-screen">
-        <div className="flex-1 flex flex-col justify-center px-6">
-          {/* 상단 */}
-          <div className="mb-8">
-            <div className="text-2xl mb-2">🔐</div>
-            <h1 className="text-2xl font-semibold mb-1">다시 돌아오셨네요</h1>
-            <p className="text-sm text-white/50 leading-relaxed">
-              {otpSent
-                ? <>저장된 번호 <span className="text-white/80 font-mono">{maskPhone(savedPhone)}</span>로<br />인증번호를 발송했습니다</>
-                : <>저장된 번호 <span className="text-white/80 font-mono">{maskPhone(savedPhone)}</span>로<br />인증번호 발송 중...</>
-              }
-            </p>
-          </div>
-
-          {/* OTP 입력 */}
-          <div className="flex gap-2 mb-6">
-            {otp.map((v, i) => (
-              <input
-                key={i}
-                ref={el => { inputsRef.current[i] = el; }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={v}
-                onChange={e => handleOtpInput(i, e.target.value)}
-                onKeyDown={e => handleOtpKey(i, e)}
-                className="flex-1 h-14 bg-white/10 border border-white/20 rounded-xl text-center text-xl font-semibold text-white focus:outline-none focus:border-white/60 focus:bg-white/15"
-              />
-            ))}
-          </div>
-
-          {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
-
-          {/* 로그인 버튼 */}
-          <button
-            onClick={handleVerify}
-            disabled={loading || otp.join('').length < 6}
-            className="w-full bg-white text-[#0f0f0f] rounded-2xl py-3.5 text-sm font-semibold
-                       disabled:opacity-40 active:scale-[0.98] transition-transform mb-4"
-          >
-            {loading ? '확인 중...' : '로그인'}
-          </button>
-
-          {/* 재발송 */}
-          <button
-            onClick={handleResend}
-            className="text-sm text-white/40 text-center py-2"
-          >
-            인증번호 다시 받기
-          </button>
-        </div>
-
-        {/* 다른 계정으로 */}
-        <div className="px-6 pb-12">
-          <button
-            onClick={() => {
-              setView('landing');
-            }}
-            className="w-full text-center text-xs text-white/30 py-3"
-          >
-            다른 계정으로 로그인
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── 기본 랜딩 화면 ────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col bg-[#0f0f0f] text-white min-h-screen">
       <div className="flex-1" />
 
       {/* 중앙 콘텐츠 */}
       <div className="flex flex-col items-center px-6 pb-2">
-        {/* 로고 아이콘 */}
+        {/* 로고 */}
         <div className="w-16 h-16 rounded-3xl bg-white/10 flex items-center justify-center mb-6 text-3xl">
           ✨
         </div>
-
-        {/* 앱 이름 */}
         <h1 className="text-4xl font-semibold tracking-tight mb-1">3rd Vibe</h1>
         <p className="text-xs tracking-[0.2em] text-white/40 mb-2 uppercase">써드 바이브</p>
         <p className="text-xs text-white/30 mb-10 text-center leading-relaxed">
@@ -184,7 +56,7 @@ export default function WelcomePage() {
           <span className="text-white/20">3번의 만남을 보장하는 프리미엄 소개팅</span>
         </p>
 
-        {/* 핵심 특징 3가지 */}
+        {/* 특징 */}
         <div className="flex gap-4 mb-10">
           {[
             { icon: '🔐', label: '직장 인증' },
@@ -201,28 +73,60 @@ export default function WelcomePage() {
         </div>
       </div>
 
-      {/* 하단 버튼 */}
+      {/* 로그인 버튼 */}
       <div className="px-6 pb-12 flex flex-col gap-3">
-        <div className="flex items-center justify-center gap-2 mb-2">
+        <div className="flex items-center justify-center gap-2 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           <span className="text-xs text-white/50">직장인 인증 기반 · 부산 거주/활동자 전용</span>
         </div>
 
+        {/* 카카오 로그인 */}
         <button
-          onClick={() => router.push('/onboarding')}
-          className="w-full bg-white text-[#0f0f0f] rounded-2xl py-3.5 text-sm font-semibold
-                     active:scale-[0.98] transition-transform"
+          onClick={handleKakao}
+          disabled={loading !== null}
+          className="w-full flex items-center justify-center gap-3 rounded-2xl py-3.5 text-sm font-semibold
+                     active:scale-[0.98] transition-transform disabled:opacity-60"
+          style={{ backgroundColor: '#FEE500', color: '#191919' }}
         >
-          3rd Vibe 시작하기
+          {loading === 'kakao' ? (
+            <div className="w-4 h-4 rounded-full border-2 border-[#191919]/30 border-t-[#191919] animate-spin" />
+          ) : (
+            <>
+              {/* 카카오 아이콘 */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3C6.477 3 2 6.477 2 10.714c0 2.716 1.626 5.1 4.084 6.535L5.08 20.83a.5.5 0 0 0 .718.543l4.35-2.882c.605.087 1.22.132 1.852.132 5.523 0 10-3.477 10-7.71C22 6.477 17.523 3 12 3z"/>
+              </svg>
+              카카오로 계속하기
+            </>
+          )}
         </button>
 
+        {/* 구글 로그인 */}
         <button
-          onClick={() => router.push('/home')}
-          className="w-full bg-transparent text-white/60 border border-white/15
-                     rounded-2xl py-3.5 text-sm active:scale-[0.98] transition-transform"
+          onClick={handleGoogle}
+          disabled={loading !== null}
+          className="w-full flex items-center justify-center gap-3 bg-white text-[#1a1a1a] rounded-2xl py-3.5 text-sm font-semibold
+                     active:scale-[0.98] transition-transform disabled:opacity-60"
         >
-          이미 계정이 있어요
+          {loading === 'google' ? (
+            <div className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin" />
+          ) : (
+            <>
+              {/* 구글 아이콘 */}
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google로 계속하기
+            </>
+          )}
         </button>
+
+        <p className="text-[10px] text-white/20 text-center mt-1">
+          로그인 시 서비스 이용약관 및 개인정보처리방침에 동의합니다
+        </p>
       </div>
     </div>
   );

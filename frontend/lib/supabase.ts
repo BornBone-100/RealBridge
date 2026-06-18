@@ -18,7 +18,7 @@ export function createClient() {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,   // OAuth 콜백 URL 자동 처리
       storageKey: '3rdvibe-auth',
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
@@ -60,6 +60,26 @@ export async function sendPhoneOtp(phone: string) {
 /** OTP 검증 */
 export async function verifyPhoneOtp(phone: string, token: string) {
   return supabase.auth.verifyOtp({ phone, token, type: 'sms' })
+}
+
+/** Google 소셜 로그인 */
+export async function signInWithGoogle() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/onboarding`,
+    },
+  })
+}
+
+/** 카카오 소셜 로그인 */
+export async function signInWithKakao() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'kakao',
+    options: {
+      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/onboarding`,
+    },
+  })
 }
 
 /** 로그아웃 (세션 삭제, 전화번호는 localStorage에 유지) */
