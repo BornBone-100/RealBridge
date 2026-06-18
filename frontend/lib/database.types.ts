@@ -305,6 +305,7 @@ export type Database = {
       notification_settings: {
         Row: {
           created_at: string
+          updated_at: string | null
           id: string
           new_intro: boolean
           new_message: boolean
@@ -317,6 +318,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          updated_at?: string
           id?: string
           new_intro?: boolean
           new_message?: boolean
@@ -329,6 +331,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          updated_at?: string
           id?: string
           new_intro?: boolean
           new_message?: boolean
