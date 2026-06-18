@@ -21,6 +21,7 @@ export type Database = {
           id: string
           is_read: boolean
           match_id: string
+          message_type: string
           sender_id: string
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           is_read?: boolean
           match_id: string
+          message_type?: string
           sender_id: string
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           is_read?: boolean
           match_id?: string
+          message_type?: string
           sender_id?: string
         }
         Relationships: [
@@ -298,6 +301,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_settings: {
+        Row: {
+          created_at: string
+          id: string
+          new_intro: boolean
+          new_message: boolean
+          date_confirmed: boolean
+          feedback: boolean
+          match_result: boolean
+          system: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_intro?: boolean
+          new_message?: boolean
+          date_confirmed?: boolean
+          feedback?: boolean
+          match_result?: boolean
+          system?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_intro?: boolean
+          new_message?: boolean
+          date_confirmed?: boolean
+          feedback?: boolean
+          match_result?: boolean
+          system?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          data: Record<string, string> | null
+          id: string
+          is_read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          data?: Record<string, string> | null
+          id?: string
+          is_read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          data?: Record<string, string> | null
+          id?: string
+          is_read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       matches: {
         Row: {
@@ -581,6 +653,8 @@ export type Database = {
           updated_at: string
           user_type: Database["public"]["Enums"]["user_type"] | null
           verification_status: Database["public"]["Enums"]["verification_status"]
+          weekly_intro_count: number
+          weekly_intro_reset_at: string | null
         }
         Insert: {
           bio?: string | null
@@ -603,6 +677,8 @@ export type Database = {
           updated_at?: string
           user_type?: Database["public"]["Enums"]["user_type"] | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
+          weekly_intro_count?: number
+          weekly_intro_reset_at?: string | null
         }
         Update: {
           bio?: string | null
@@ -625,6 +701,8 @@ export type Database = {
           updated_at?: string
           user_type?: Database["public"]["Enums"]["user_type"] | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
+          weekly_intro_count?: number
+          weekly_intro_reset_at?: string | null
         }
         Relationships: []
       }
@@ -759,6 +837,7 @@ export type Database = {
         | "stopped_no_fault"
         | "stopped_fault"
         | "cancelled"
+        | "ended"
       mbti_type:
         | "INTJ"
         | "INTP"
@@ -928,6 +1007,7 @@ export const Constants = {
         "stopped_no_fault",
         "stopped_fault",
         "cancelled",
+        "ended",
       ],
       mbti_type: [
         "INTJ",
