@@ -70,30 +70,30 @@ async def send_sms(to: str, text: str) -> bool:
         return False
 
 
-# ── 핵심 작업: 매일 오전 9시 실행 ────────────────────────
-async def send_day_after_feedback():
+# ── 핵심 작업: 매일 저녁 21시 실행 ───────────────────────
+async def send_tonight_feedback():
     """
-    전날 완료된 (또는 완료 예정이었던) 마일스톤에 대해
-    피드백 서베이를 생성하고 SMS를 발송한다.
+    오늘 날짜로 confirmed/completed 된 마일스톤에 대해
+    그날 밤 21시에 피드백 서베이를 생성하고 SMS를 발송한다.
     """
     db = get_admin_db_direct()
 
-    yesterday_end   = datetime.now(timezone.utc).replace(
+    today_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    yesterday_start = yesterday_end - timedelta(days=1)
+    now = datetime.now(timezone.utc)
 
-    # 1. 어제 날짜로 confirmed된 마일스톤 조회 (feedback 미발송)
+    # 1. 오늘 confirmed_datetime이 있는 마일스톤 조회 (feedback 미발송)
     milestones_res = db.table("date_milestones").select(
         "*, matches(user_a_id, user_b_id, state)"
     ).gte(
-        "confirmed_datetime", yesterday_start.isoformat()
+        "confirmed_datetime", today_start.isoformat()
     ).lt(
-        "confirmed_datetime", yesterday_end.isoformat()
-    ).eq("status", "confirmed").is_("feedback_sent_at", "null").execute()
+        "confirmed_datetime", now.isoformat()
+    ).in_("status", ["confirmed", "completed"]).is_("feedback_sent_at", "null").execute()
 
     if not milestones_res.data:
-        logger.info("어제 완료 마일스톤 없음 — 피드백 발송 스킵")
+        logger.info("오늘 완료 마일스톤 없음 — 피드백 발송 스킵")
         return
 
     for ms in milestones_res.data:
@@ -105,7 +105,7 @@ async def send_day_after_feedback():
         if match_state in ("stopped_no_fault", "stopped_fault", "cancelled"):
             continue  # 이미 중단된 매칭 스킵
 
-        now = datetime.now(timezone.utc).isoformat()
+        now_str = datetime.now(timezone.utc).isoformat()
 
         # 2. feedback_surveys 레코드 생성 (양쪽)
         for uid in [user_a, user_b]:
@@ -121,7 +121,7 @@ async def send_day_after_feedback():
             db.table("feedback_surveys").insert({
                 "milestone_id": ms["id"],
                 "user_id":      uid,
-                "sent_at":      now,
+                "sent_at":      now_str,
             }).execute()
 
             # 유저 전화번호 조회 후 SMS 발송
@@ -136,17 +136,19 @@ async def send_day_after_feedback():
             name  = user.get("name", "고객")
 
             ms_no = ms["milestone_no"]
+            date_themes = ["가볍게 차나 식사", "여자가 원하는 데이트", "남자가 원하는 데이트"]
+            theme = date_themes[ms_no - 1] if ms_no <= 3 else f"{ms_no}차 만남"
             sms_text = (
-                f"[3rd Vibe] {name}님, {ms_no}차 만남은 어떠셨나요? 😊\n"
-                f"앱에서 호감도와 다음 만남 의향을 알려주시면\n"
-                f"더 정확한 매칭을 도와드립니다.\n"
-                f"👉 3rd Vibe 앱 → 피드백 응답하기"
+                f"[3rd Vibe] {name}님, 오늘 {ms_no}차 만남({theme}) 어떠셨나요? 😊\n"
+                f"오늘 밤 솔직한 후기를 남겨주시면\n"
+                f"더 좋은 만남을 이어갈 수 있어요.\n"
+                f"👉 3rd Vibe 앱 → 피드백 남기기"
             )
             await send_sms(phone, sms_text)
 
         # 3. feedback_sent_at 업데이트
         db.table("date_milestones").update({
-            "feedback_sent_at": now
+            "feedback_sent_at": now_str
         }).eq("id", ms["id"]).execute()
 
         logger.info(f"[Scheduler] 마일스톤 {ms['id']} 피드백 발송 완료")
@@ -161,54 +163,114 @@ async def process_feedback_response(
 ) -> dict:
     """
     유저가 피드백 서베이에 응답했을 때 호출.
-    want_next_date=False 이면 매칭 중단 + 환불 트리거.
+
+    1·2차 만남:
+      - want_next_date=False → 즉시 매칭 중단 + 환불
+
+    3차 만남 (최종 결정):
+      - 양쪽 모두 응답 완료 시에만 결과 처리
+      - 양쪽 Yes → match.state = 'success'
+      - 한 명이라도 No → match.state = 'ended' + 환불
     """
     # 마일스톤 조회
     ms_res = db.table("date_milestones").select(
-        "*, matches(id, user_a_id, user_b_id, state)"
+        "milestone_no, match_id, matches(id, user_a_id, user_b_id, state)"
     ).eq("id", milestone_id).single().execute()
 
     if not ms_res.data:
         return {"error": "마일스톤을 찾을 수 없습니다."}
 
-    ms    = ms_res.data
-    match = ms.get("matches", {})
+    ms         = ms_res.data
+    match      = ms.get("matches", {})
+    ms_no      = ms.get("milestone_no", 1)
+    match_id   = match.get("id")
+    match_state = match.get("state")
 
-    if not want_next_date and match.get("state") == "active":
-        match_id = match["id"]
+    if match_state in ("success", "ended", "stopped_no_fault", "stopped_fault", "cancelled"):
+        return {"skipped": True, "reason": "이미 종료된 매칭"}
 
-        # 매칭 중단 처리
+    # ── 1·2차: 즉시 중단 ──────────────────────────────────
+    if ms_no < 3 and not want_next_date:
         db.table("matches").update({
-            "state":      "stopped_no_fault",
-            "stopped_by": user_id,
-            "closed_at":  datetime.now(timezone.utc).isoformat(),
-            "stop_reason": "유저 요청 — 다음 만남 의향 없음",
+            "state":       "stopped_no_fault",
+            "stopped_by":  user_id,
+            "closed_at":   datetime.now(timezone.utc).isoformat(),
+            "stop_reason": f"{ms_no}차 만남 후 유저 요청 종료",
         }).eq("id", match_id).execute()
 
-        # 양쪽 유저 보증금 환불 트리거
         for uid in [match["user_a_id"], match["user_b_id"]]:
             async with httpx.AsyncClient(timeout=10) as c:
                 await c.post(
                     f"{INTERNAL_API}/api/payment/refund-deposit",
-                    json={"user_id": uid, "reason": "유저 요청 — 다음 만남 의향 없음"},
+                    json={"user_id": uid, "reason": f"{ms_no}차 만남 후 종료 — 환불"},
                 )
-
         return {"stopped": True, "refund_triggered": True}
 
-    return {"stopped": False}
+    # ── 3차: 상호 결정 처리 ───────────────────────────────
+    if ms_no == 3:
+        surveys_res = db.table("feedback_surveys").select(
+            "user_id, want_next_date, is_answered, answered_at"
+        ).eq("milestone_id", milestone_id).execute()
+
+        responded = [s for s in (surveys_res.data or []) if s.get("is_answered")]
+
+        # 양쪽 모두 응답했는지 확인
+        user_a = match.get("user_a_id")
+        user_b = match.get("user_b_id")
+        a_res  = next((s for s in responded if s["user_id"] == user_a), None)
+        b_res  = next((s for s in responded if s["user_id"] == user_b), None)
+
+        if not (a_res and b_res):
+            return {"waiting": True, "msg": "상대방 응답 대기 중"}
+
+        both_yes = a_res["want_next_date"] and b_res["want_next_date"]
+
+        if both_yes:
+            # 매칭 성공
+            db.table("matches").update({
+                "state": "success",
+            }).eq("id", match_id).execute()
+
+            # 매니저에게 알림 (컨시어지 메시지)
+            for uid in [user_a, user_b]:
+                db.table("concierge_messages").insert({
+                    "user_id":       uid,
+                    "content":       "🎉 서로 계속 만나고 싶어한다는 결과가 나왔어요!\n3rd Vibe 매니저가 다음 단계를 안내드릴게요 💕",
+                    "is_from_admin": True,
+                    "is_read":       False,
+                }).execute()
+
+            return {"success": True, "result": "match_success"}
+        else:
+            # 매칭 종료 + 환불
+            db.table("matches").update({
+                "state":     "ended",
+                "closed_at": datetime.now(timezone.utc).isoformat(),
+                "stop_reason": "3차 만남 후 상호 결정 — 종료",
+            }).eq("id", match_id).execute()
+
+            for uid in [user_a, user_b]:
+                async with httpx.AsyncClient(timeout=10) as c:
+                    await c.post(
+                        f"{INTERNAL_API}/api/payment/refund-deposit",
+                        json={"user_id": uid, "reason": "3차 만남 종료 — 환불"},
+                    )
+            return {"stopped": True, "refund_triggered": True, "result": "ended"}
+
+    return {"no_action": True}
 
 
 # ── 스케줄러 시작/종료 ────────────────────────────────────
 def start_scheduler():
     scheduler.add_job(
-        send_day_after_feedback,
-        CronTrigger(hour=9, minute=0, timezone="Asia/Seoul"),
-        id="day_after_feedback",
+        send_tonight_feedback,
+        CronTrigger(hour=21, minute=0, timezone="Asia/Seoul"),
+        id="tonight_feedback",
         replace_existing=True,
         misfire_grace_time=3600,
     )
     scheduler.start()
-    logger.info("APScheduler 시작 — 매일 09:00 피드백 발송")
+    logger.info("APScheduler 시작 — 매일 21:00 당일 데이트 피드백 발송")
 
 
 def stop_scheduler():

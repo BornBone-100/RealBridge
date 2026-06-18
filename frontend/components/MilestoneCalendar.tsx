@@ -36,6 +36,12 @@ interface Props {
 
 const MILESTONE_LABELS = ['1차 만남', '2차 만남', '3차 만남'];
 
+const MILESTONE_THEMES = [
+  { emoji: '☕', title: '가볍게 차나 식사', desc: '편안한 카페나 식당에서 서로를 알아가는 시간' },
+  { emoji: '💃', title: '여자가 원하는 데이트', desc: '두 번째 만남은 여자분이 가고 싶은 곳으로' },
+  { emoji: '🎯', title: '남자가 원하는 데이트', desc: '마지막 만남은 남자분이 준비한 특별한 데이트' },
+];
+
 const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg: string; dot: string }> = {
   pending:   { label: '일정 미정',   color: 'text-gray-400',  bg: 'bg-gray-50',   dot: 'bg-gray-300'  },
   proposed:  { label: '날짜 제안 중', color: 'text-amber-600', bg: 'bg-amber-50',  dot: 'bg-amber-400' },
@@ -84,7 +90,7 @@ function MilestoneCard({
   return (
     <div className={`rounded-2xl border ${cfg.bg} p-4 mb-2`}>
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className={`w-6 h-6 rounded-full bg-[#0f0f0f] text-white text-xs
                           flex items-center justify-center font-semibold`}>
@@ -99,6 +105,20 @@ function MilestoneCard({
           <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
         </div>
       </div>
+
+      {/* 데이트 주제 */}
+      {(() => {
+        const theme = MILESTONE_THEMES[ms.milestone_no - 1];
+        return (
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <span className="text-base">{theme.emoji}</span>
+            <div>
+              <p className="text-xs font-medium text-gray-700">{theme.title}</p>
+              <p className="text-[10px] text-gray-400">{theme.desc}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 내용 */}
       {ms.status === 'pending' && (

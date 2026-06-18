@@ -117,7 +117,7 @@ function ProfileModal({ user, idx, onClose, viewerUserId }: {
             <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-6">
               <p className="text-xs text-gray-500 text-center leading-relaxed">
                 3rd Vibe는 컨시어지 기반 매칭 서비스입니다.<br />
-                매칭을 원하시면 매니저에게 문의해 주세요 🤝
+                매칭을 원하시면 3rd Vibe에게 문의해 주세요 🤝
               </p>
             </div>
           </div>

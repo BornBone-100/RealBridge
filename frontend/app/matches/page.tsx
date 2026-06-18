@@ -281,8 +281,9 @@ export default function MatchesPage() {
             })}
           </div>
 
-          {/* 관리자 문의 배너 */}
-          <div className="mx-6 mt-4 mb-6">
+          {/* 하단 채널 배너 */}
+          <div className="mx-6 mt-4 mb-6 space-y-2.5">
+            {/* 매니저 문의 */}
             <button
               onClick={() => router.push('/concierge')}
               className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-gray-50
@@ -295,6 +296,26 @@ export default function MatchesPage() {
               <div className="flex-1 text-left">
                 <p className="text-sm font-medium text-gray-900">3rd Vibe 매니저</p>
                 <p className="text-xs text-gray-400">매칭 관련 문의, 불편 신고</p>
+              </div>
+              <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+
+            {/* 연애 고민상담 */}
+            <button
+              onClick={() => router.push('/advice')}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-rose-50
+                         border border-rose-100 active:bg-rose-100 transition-colors"
+            >
+              <div className="w-9 h-9 rounded-full bg-rose-500 flex items-center justify-center
+                              text-white text-sm flex-shrink-0">
+                💕
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-medium text-gray-900">소개팅 · 연애 고민상담</p>
+                <p className="text-xs text-gray-400">첫 만남, 데이트 고민을 털어놓으세요</p>
               </div>
               <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" strokeWidth={2}>
