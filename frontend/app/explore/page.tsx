@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClient } from '@/lib/supabase';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import ProtectedView from '@/components/ProtectedView';
 
 interface BusanUser {
   id: string;
@@ -28,10 +29,11 @@ const EMOJIS = ['🌊', '🌸', '☕', '🏄', '🌿', '✨', '🎨', '🎵'];
 const DISTRICTS = ['전체', '해운대구', '수영구', '남구', '부산진구', '동래구'];
 
 // ── 프로필 상세 모달 ─────────────────────────────────────────
-function ProfileModal({ user, idx, onClose }: {
+function ProfileModal({ user, idx, onClose, viewerUserId }: {
   user: BusanUser;
   idx: number;
   onClose: () => void;
+  viewerUserId: string;
 }) {
   const age = new Date().getFullYear() - user.birth_year;
   const g = GRADIENTS[idx % GRADIENTS.length];
@@ -50,16 +52,22 @@ function ProfileModal({ user, idx, onClose }: {
         </div>
 
         <div className="overflow-y-auto">
-          {/* 사진 */}
-          <div className="h-56 relative flex items-center justify-center text-7xl flex-shrink-0"
-            style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}>
-            {user.profile_photo_url ? (
-              <img src={user.profile_photo_url} alt={user.name}
-                className="absolute inset-0 w-full h-full object-cover" />
-            ) : (
-              emoji
-            )}
-          </div>
+          {/* 사진 — ProtectedView로 캡처 방지 */}
+          <ProtectedView
+            userId={viewerUserId}
+            showBanner={!!user.profile_photo_url}
+            className="h-56 flex-shrink-0"
+          >
+            <div className="h-56 relative flex items-center justify-center text-7xl"
+              style={{ background: `linear-gradient(135deg, ${g.from}, ${g.to})` }}>
+              {user.profile_photo_url ? (
+                <img src={user.profile_photo_url} alt={user.name}
+                  className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                emoji
+              )}
+            </div>
+          </ProtectedView>
 
           {/* 정보 */}
           <div className="px-6 py-5">
@@ -290,6 +298,7 @@ export default function ExplorePage() {
           user={selectedUser.user}
           idx={selectedUser.idx}
           onClose={() => setSelectedUser(null)}
+          viewerUserId={user?.id ?? ''}
         />
       )}
     </div>
