@@ -475,7 +475,9 @@ async def create_match(req: CreateMatchRequest, db=Depends(get_admin_db)):
     둘 중 하나라도 active 매치가 있으면 409 Conflict.
     DB 트리거가 2차 방어선 역할을 함.
     """
-    # 양쪽 lock 확인
+    WEEKLY_INTRO_LIMIT = 3
+
+    # 양쪽 lock 확인 + 주간 소개팅 제한 확인
     for uid, label in [(req.user_a_id, "user_a"), (req.user_b_id, "user_b")]:
         lock = db.table("matches").select("id").in_(
             "state", list(ACTIVE_MATCH_STATES)
@@ -486,12 +488,28 @@ async def create_match(req: CreateMatchRequest, db=Depends(get_admin_db)):
                 detail=f"{label} ({uid}) 는 현재 매칭 진행 중입니다. 3회 만남이 완료되거나 매칭이 종료된 후 새 매칭이 가능합니다.",
             )
 
+        # 주간 소개팅 제한 (3명/주)
+        user_row = db.table("users").select("weekly_intro_count").eq("id", uid).single().execute()
+        if user_row.data and (user_row.data.get("weekly_intro_count") or 0) >= WEEKLY_INTRO_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail=f"{label} ({uid}) 는 이번 주 소개팅 한도(3명)에 도달했습니다. 다음 주 월요일에 초기화됩니다.",
+            )
+
     try:
         result = db.table("matches").insert({
             "user_a_id": req.user_a_id,
             "user_b_id": req.user_b_id,
             "state": "waiting",
         }).execute()
+
+        # 주간 소개팅 카운터 증가 (양쪽)
+        for uid in [req.user_a_id, req.user_b_id]:
+            cur = db.table("users").select("weekly_intro_count").eq("id", uid).single().execute()
+            cur_count = (cur.data.get("weekly_intro_count") or 0) if cur.data else 0
+            db.table("users").update({
+                "weekly_intro_count": cur_count + 1
+            }).eq("id", uid).execute()
     except Exception as e:
         err_str = str(e)
         if "already has an active match" in err_str:

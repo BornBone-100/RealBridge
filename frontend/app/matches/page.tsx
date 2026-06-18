@@ -47,6 +47,7 @@ export default function MatchesPage() {
   const { user, loading: authLoading } = useCurrentUser();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [weeklyIntroCount, setWeeklyIntroCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (authLoading || !user) {
@@ -130,7 +131,19 @@ export default function MatchesPage() {
       setLoading(false);
     };
 
+    // 주간 소개팅 카운터
+    const loadWeeklyCount = async () => {
+      const supabase = getClient();
+      const { data } = await supabase
+        .from('users')
+        .select('weekly_intro_count')
+        .eq('id', user.id)
+        .single();
+      if (data) setWeeklyIntroCount(data.weekly_intro_count ?? 0);
+    };
+
     loadMatches();
+    loadWeeklyCount();
   }, [user, authLoading]);
 
   if (authLoading || loading) {
@@ -156,11 +169,24 @@ export default function MatchesPage() {
   return (
     <div className="flex-1 flex flex-col bg-white min-h-screen">
       {/* 헤더 */}
-      <div className="px-6 pt-14 pb-4">
-        <h1 className="text-xl font-medium text-gray-900">매칭</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          {matches.length > 0 ? `${matches.length}명과 연결됨` : '아직 매칭이 없어요'}
-        </p>
+      <div className="px-6 pt-14 pb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-medium text-gray-900">매칭</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {matches.length > 0 ? `${matches.length}명과 연결됨` : '아직 매칭이 없어요'}
+          </p>
+        </div>
+        {weeklyIntroCount !== null && (
+          <div className="flex flex-col items-end gap-0.5 mt-1">
+            <div className="flex items-center gap-1">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={`w-2.5 h-2.5 rounded-full
+                  ${i < weeklyIntroCount ? 'bg-[#0f0f0f]' : 'bg-gray-200'}`} />
+              ))}
+            </div>
+            <span className="text-[10px] text-gray-400">이번 주 {weeklyIntroCount}/3명</span>
+          </div>
+        )}
       </div>
 
       {matches.length === 0 ? (

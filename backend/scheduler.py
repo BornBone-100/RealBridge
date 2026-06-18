@@ -260,6 +260,20 @@ async def process_feedback_response(
     return {"no_action": True}
 
 
+# ── 주간 소개팅 카운터 초기화 (매주 월요일 00:00 KST) ────
+async def reset_weekly_intro_count():
+    """
+    매주 월요일 자정에 모든 유저의 weekly_intro_count를 0으로 초기화한다.
+    """
+    db = get_admin_db_direct()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    db.table("users").update({
+        "weekly_intro_count": 0,
+        "weekly_intro_reset_at": now_iso,
+    }).gte("id", "00000000-0000-0000-0000-000000000000").execute()  # 전체 업데이트
+    logger.info("[Scheduler] 주간 소개팅 카운터 초기화 완료")
+
+
 # ── 스케줄러 시작/종료 ────────────────────────────────────
 def start_scheduler():
     scheduler.add_job(
@@ -269,8 +283,15 @@ def start_scheduler():
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        reset_weekly_intro_count,
+        CronTrigger(day_of_week="mon", hour=0, minute=0, timezone="Asia/Seoul"),
+        id="weekly_intro_reset",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
     scheduler.start()
-    logger.info("APScheduler 시작 — 매일 21:00 당일 데이트 피드백 발송")
+    logger.info("APScheduler 시작 — 매일 21:00 피드백 발송 / 매주 월요일 00:00 소개팅 카운터 초기화")
 
 
 def stop_scheduler():

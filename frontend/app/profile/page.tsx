@@ -5,7 +5,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { signOut } from '@/lib/supabase';
 
 const MENU_ITEMS = [
-  { icon: '🔔', label: '알림 설정' },
+  { icon: '🔔', label: '알림 설정', href: '/profile/notifications' },
   { icon: '🔒', label: '개인정보 보호' },
   { icon: '💳', label: '구독 관리', sub: 'TrueNote', href: '/subscription' },
   { icon: '📋', label: '이용약관' },

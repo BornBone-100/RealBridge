@@ -52,7 +52,7 @@ const TABS = [
 
 // 바텀 탭바를 숨길 경로
 // '/' 는 startsWith로 체크하면 모든 경로에 매칭되므로 정확한 경로만 exact match
-const HIDDEN_EXACT = new Set(['/', '/onboarding', '/deposit', '/verify-docs', '/subscription', '/concierge', '/advice']);
+const HIDDEN_EXACT = new Set(['/', '/onboarding', '/deposit', '/verify-docs', '/subscription', '/concierge', '/advice', '/notifications']);
 const HIDDEN_PREFIX = ['/chat/', '/matches/topic/', '/verify/', '/profile/setup', '/onboarding/', '/date-feedback'];
 
 export default function BottomNav() {
