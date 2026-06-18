@@ -555,30 +555,38 @@ export default function OnboardingPage() {
   });
 
   // 소셜 로그인 후 세션 확인
-  // onAuthStateChange 사용: OAuth 콜백 URL 해시 파싱 완료 후 SIGNED_IN 이벤트를 수신
+  // getSession() 직접 호출: createBrowserClient 쿠키 세션을 즉시 읽음
   useEffect(() => {
     const supabase = getClient();
 
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/');
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.name) {
+        // 프로필 완성된 기존 유저 → 홈으로
+        router.replace('/home');
+      } else {
+        // 신규 유저 → 기본정보 입력
+        setStep('basic');
+      }
+    }
+
+    checkSession();
+
+    // SIGNED_IN/SIGNED_OUT 이벤트도 감지 (탭 전환 등)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          if (!session) {
-            router.replace('/');
-            return;
-          }
-          const { data: profile } = await supabase
-            .from('users')
-            .select('name')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile?.name) {
-            // 프로필 완성된 기존 유저 → 홈으로
-            router.replace('/home');
-          } else {
-            // 신규 유저 → 기본정보 입력
-            setStep('basic');
-          }
+        if (event === 'SIGNED_OUT') {
+          router.replace('/');
         }
       }
     );
