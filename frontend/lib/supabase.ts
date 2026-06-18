@@ -67,7 +67,7 @@ export async function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/onboarding`,
+      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/onboarding`,
     },
   })
 }
@@ -77,7 +77,7 @@ export async function signInWithKakao() {
   return supabase.auth.signInWithOAuth({
     provider: 'kakao',
     options: {
-      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/onboarding`,
+      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/onboarding`,
     },
   })
 }
