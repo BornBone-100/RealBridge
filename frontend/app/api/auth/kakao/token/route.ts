@@ -29,7 +29,12 @@ export async function POST(request: NextRequest) {
   if (data.error) {
     console.error('[kakao/token] 카카오 토큰 교환 실패:', data)
     return NextResponse.json(
-      { error: data.error_description ?? data.error },
+      {
+        error: data.error_description ?? data.error,
+        kakaoError: data.error,
+        kakaoErrorDesc: data.error_description,
+        httpStatus: res.status,
+      },
       { status: 400 }
     )
   }

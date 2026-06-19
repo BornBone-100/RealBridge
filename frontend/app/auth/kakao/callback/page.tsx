@@ -34,10 +34,11 @@ function KakaoCallbackInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, codeVerifier, redirectUri }),
       })
-      const { idToken, error: tokenError } = await tokenRes.json()
+      const tokenData = await tokenRes.json()
+      const { idToken, error: tokenError, kakaoError, kakaoErrorDesc, httpStatus } = tokenData
 
       if (tokenError || !idToken) {
-        console.error('[kakao/callback] 토큰 교환 실패:', tokenError)
+        console.error('[kakao/callback] 토큰 교환 실패:', tokenError, '| kakaoError:', kakaoError, '| kakaoErrorDesc:', kakaoErrorDesc, '| httpStatus:', httpStatus, '| full:', tokenData)
         setStatus('토큰 교환 실패. 다시 시도해 주세요.')
         router.replace('/?error=token_exchange_failed')
         return
