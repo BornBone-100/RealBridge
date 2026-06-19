@@ -69,15 +69,39 @@ export async function signInWithGoogle() {
   })
 }
 
-/** 카카오 소셜 로그인 */
+/** 카카오 소셜 로그인 (커스텀 OIDC — account_email 스코프 없이 동작)
+ *  Supabase 내장 Kakao OAuth는 항상 account_email 스코프를 포함 → 비즈앱 없이 KOE205 발생
+ *  → Kakao OIDC 직접 호출 후 id_token을 signInWithIdToken으로 Supabase 세션 생성
+ */
 export async function signInWithKakao() {
-  return supabase.auth.signInWithOAuth({
-    provider: 'kakao',
-    options: {
-      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/onboarding`,
-      scopes: 'profile_nickname profile_image',
-    },
+  if (typeof window === 'undefined') return
+
+  // Kakao REST API Key (공개값 — OAuth URL에 노출됨)
+  const KAKAO_REST_KEY = 'a28e0e35e9c557a963d76feb1bcae678'
+
+  // PKCE code_verifier 생성
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  const codeVerifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+
+  // code_challenge = SHA-256(code_verifier) base64url
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))
+  const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+
+  sessionStorage.setItem('kakao_cv', codeVerifier)
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: KAKAO_REST_KEY,
+    redirect_uri: `${window.location.origin}/auth/kakao/callback`,
+    scope: 'openid profile_nickname profile_image',
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   })
+
+  window.location.href = `https://kauth.kakao.com/oauth/authorize?${params}`
 }
 
 /** 로그아웃 (세션 삭제, 전화번호는 localStorage에 유지) */
