@@ -75,6 +75,7 @@ export async function signInWithKakao() {
     provider: 'kakao',
     options: {
       redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=/onboarding`,
+      scopes: 'profile_nickname profile_image',
     },
   })
 }
