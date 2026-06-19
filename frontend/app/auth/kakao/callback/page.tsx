@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-export default function KakaoCallbackPage() {
+function KakaoCallbackInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState('카카오 로그인 처리 중...')
@@ -71,5 +71,17 @@ export default function KakaoCallbackPage() {
         <p className="text-white text-sm">{status}</p>
       </div>
     </div>
+  )
+}
+
+export default function KakaoCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="w-10 h-10 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <KakaoCallbackInner />
+    </Suspense>
   )
 }
