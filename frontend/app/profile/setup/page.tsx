@@ -183,6 +183,54 @@ export default function ProfileSetupPage() {
 
       <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
 
+        {/* ── 이름 + 나이 ── */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 mb-1.5 block">이름</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="실명 입력"
+              className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
+                         text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400"
+            />
+            {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
+          </div>
+          <div className="w-20">
+            <label className="text-xs text-gray-400 mb-1.5 block">나이</label>
+            <input
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="25"
+              type="number"
+              min={18} max={60}
+              className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
+                         text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400"
+            />
+            {errors.age && <p className="text-xs text-red-400 mt-1">{errors.age}</p>}
+          </div>
+        </div>
+
+        {/* ── 국적 ── */}
+        <div>
+          <label className="text-xs text-gray-400 mb-2 block">국적</label>
+          <div className="flex gap-2">
+            {NATIONALITIES.map((n) => (
+              <button
+                key={n.code}
+                onClick={() => setNationality(n.code)}
+                className={`flex-1 py-2.5 rounded-xl text-sm border transition-all
+                  ${nationality === n.code
+                    ? 'border-[#0f0f0f] bg-[#0f0f0f] text-white'
+                    : 'border-gray-200 text-gray-600'}`}
+              >
+                {n.flag} {n.label}
+              </button>
+            ))}
+          </div>
+          {errors.nationality && <p className="text-xs text-red-400 mt-1">{errors.nationality}</p>}
+        </div>
+
         {/* ── 사진 섹션 ── */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -288,54 +336,6 @@ export default function ProfileSetupPage() {
           {errors.photos && (
             <p className="text-xs text-red-400 mt-1.5">{errors.photos}</p>
           )}
-        </div>
-
-        {/* ── 이름 + 나이 ── */}
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-xs text-gray-400 mb-1.5 block">이름</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="실명 입력"
-              className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
-                         text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400"
-            />
-            {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
-          </div>
-          <div className="w-20">
-            <label className="text-xs text-gray-400 mb-1.5 block">나이</label>
-            <input
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="25"
-              type="number"
-              min={18} max={60}
-              className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
-                         text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400"
-            />
-            {errors.age && <p className="text-xs text-red-400 mt-1">{errors.age}</p>}
-          </div>
-        </div>
-
-        {/* ── 국적 ── */}
-        <div>
-          <label className="text-xs text-gray-400 mb-2 block">국적</label>
-          <div className="flex gap-2">
-            {NATIONALITIES.map((n) => (
-              <button
-                key={n.code}
-                onClick={() => setNationality(n.code)}
-                className={`flex-1 py-2.5 rounded-xl text-sm border transition-all
-                  ${nationality === n.code
-                    ? 'border-[#0f0f0f] bg-[#0f0f0f] text-white'
-                    : 'border-gray-200 text-gray-600'}`}
-              >
-                {n.flag} {n.label}
-              </button>
-            ))}
-          </div>
-          {errors.nationality && <p className="text-xs text-red-400 mt-1">{errors.nationality}</p>}
         </div>
 
         {/* ── 관심사 ── */}
