@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const KAKAO_REST_KEY = 'a28e0e35e9c557a963d76feb1bcae678'
+const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET ?? ''
 const KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token'
 
 export async function POST(request: NextRequest) {
@@ -10,13 +11,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'missing_params' }, { status: 400 })
   }
 
-  const body = new URLSearchParams({
+  const params: Record<string, string> = {
     grant_type: 'authorization_code',
     client_id: KAKAO_REST_KEY,
     redirect_uri: redirectUri,
     code,
     code_verifier: codeVerifier,
-  })
+  }
+  if (KAKAO_CLIENT_SECRET) {
+    params.client_secret = KAKAO_CLIENT_SECRET
+  }
+
+  const body = new URLSearchParams(params)
 
   const res = await fetch(KAKAO_TOKEN_URL, {
     method: 'POST',

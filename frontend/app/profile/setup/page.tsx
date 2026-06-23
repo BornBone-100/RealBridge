@@ -12,13 +12,24 @@ const NATIONALITIES: { code: Nationality; label: string; flag: string }[] = [
   { code: 'TW', label: '대만', flag: '🇹🇼' },
 ];
 const MIN_BIO_LENGTH = 100;
+const MIN_PHOTOS = 3;
+const MAX_PHOTOS = 6;
+
+interface PhotoSlot {
+  file: File | null;
+  preview: string | null;
+}
 
 export default function ProfileSetupPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  // 사진: 최대 6장 슬롯, 최소 3장 필수
+  const [photos, setPhotos] = useState<PhotoSlot[]>(
+    Array.from({ length: MAX_PHOTOS }, () => ({ file: null, preview: null }))
+  );
+
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [nationality, setNationality] = useState<Nationality | null>(null);
@@ -28,22 +39,52 @@ export default function ProfileSetupPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  const filledCount = photos.filter((p) => p.preview !== null).length;
+
   const toggleInterest = (i: string) =>
     setInterests((prev) =>
       prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
     );
 
-  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSlotClick = (index: number) => {
+    setActiveSlot(index);
+    fileRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setImageUrl(URL.createObjectURL(file));
-    }
+    if (!file || activeSlot === null) return;
+
+    const preview = URL.createObjectURL(file);
+    setPhotos((prev) => {
+      const next = [...prev];
+      next[activeSlot] = { file, preview };
+      return next;
+    });
+    setActiveSlot(null);
+    // 에러 클리어
+    setErrors((prev) => ({ ...prev, photos: '' }));
+    // input 초기화 (같은 파일 재선택 허용)
+    e.target.value = '';
+  };
+
+  const removePhoto = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotos((prev) => {
+      const next = [...prev];
+      if (next[index].preview) URL.revokeObjectURL(next[index].preview!);
+      next[index] = { file: null, preview: null };
+      // 빈 슬롯이 중간에 생기지 않도록 앞으로 당기기
+      const filled = next.filter((p) => p.preview !== null);
+      const empty = next.filter((p) => p.preview === null);
+      return [...filled, ...empty];
+    });
   };
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!imageUrl) e.image = '프로필 사진을 등록해 주세요.';
+    if (filledCount < MIN_PHOTOS)
+      e.photos = `사진을 ${MIN_PHOTOS}장 이상 등록해 주세요. (현재 ${filledCount}장)`;
     if (!name.trim()) e.name = '이름을 입력해 주세요.';
     if (!age || isNaN(Number(age))) e.age = '나이를 입력해 주세요.';
     if (!nationality) e.nationality = '국적을 선택해 주세요.';
@@ -64,25 +105,28 @@ export default function ProfileSetupPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('로그인이 필요합니다.');
 
-      // 1. 사진 업로드
-      let photoUrl: string | null = null;
-      if (imageFile) {
-        const ext = imageFile.name.split('.').pop() ?? 'jpg';
-        const path = `${user.id}/profile.${ext}`;
+      // 사진 업로드 (채워진 슬롯만)
+      const photoUrls: string[] = [];
+      const filledPhotos = photos.filter((p) => p.file !== null);
+
+      for (let i = 0; i < filledPhotos.length; i++) {
+        const { file } = filledPhotos[i];
+        if (!file) continue;
+        const ext = file.name.split('.').pop() ?? 'jpg';
+        const path = `${user.id}/photo_${i}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('profile-photos')
-          .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+          .upload(path, file, { upsert: true, contentType: file.type });
 
         if (uploadError) throw uploadError;
 
         const { data: urlData } = supabase.storage
           .from('profile-photos')
           .getPublicUrl(path);
-        // 캐시 무력화용 타임스탬프 추가
-        photoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+        photoUrls.push(`${urlData.publicUrl}?t=${Date.now()}`);
       }
 
-      // 2. 프로필 저장
+      // 프로필 저장
       const currentYear = new Date().getFullYear();
       const birthYear = currentYear - Number(age);
 
@@ -96,7 +140,8 @@ export default function ProfileSetupPage() {
           bio: bio.trim(),
           ...(nationality && { nationality }),
           hobbies: interests,
-          profile_photo_url: photoUrl,
+          profile_photo_url: photoUrls[0] ?? null,
+          profile_photos: photoUrls,
           is_active: true,
           updated_at: new Date().toISOString(),
         } as any, { onConflict: 'id' }) as any);
@@ -136,39 +181,116 @@ export default function ProfileSetupPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
-        {/* 프로필 사진 */}
-        <div className="flex flex-col items-center gap-3">
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImage} />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="relative w-24 h-24 rounded-3xl overflow-hidden border-2 border-dashed
-                       border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-1"
-          >
-            {imageUrl ? (
-              <img src={imageUrl} alt="프로필" className="w-full h-full object-cover" />
-            ) : (
-              <>
-                <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-                </svg>
-                <span className="text-xs text-gray-300">사진 추가</span>
-              </>
-            )}
-            {/* 변경 오버레이 */}
-            {imageUrl && (
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-medium">변경</span>
-              </div>
-            )}
-          </button>
-          {errors.image && <p className="text-xs text-red-400">{errors.image}</p>}
-          <p className="text-xs text-gray-400">얼굴이 명확히 보이는 사진을 등록해 주세요</p>
+      <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
+
+        {/* ── 사진 섹션 ── */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-medium text-gray-700">
+              프로필 사진
+              <span className="ml-1 text-red-400">*</span>
+            </label>
+            <span className={`text-xs font-medium ${filledCount >= MIN_PHOTOS ? 'text-green-500' : 'text-gray-400'}`}>
+              {filledCount} / {MIN_PHOTOS}장 이상 필수
+            </span>
+          </div>
+
+          {/* 안내 문구 */}
+          <p className="text-xs text-gray-400 mb-3">
+            얼굴이 선명하게 보이는 사진을 {MIN_PHOTOS}장 이상 등록해 주세요.
+            선글라스·마스크로 얼굴을 가린 사진은 사용할 수 없습니다.
+          </p>
+
+          {/* 사진 그리드 (2×3) */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((slot, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSlotClick(idx)}
+                className={`relative aspect-square rounded-2xl overflow-hidden border-2
+                  ${slot.preview
+                    ? 'border-transparent'
+                    : idx < MIN_PHOTOS
+                      ? 'border-dashed border-yellow-400 bg-yellow-50'
+                      : 'border-dashed border-gray-200 bg-gray-50'
+                  }`}
+              >
+                {slot.preview ? (
+                  <>
+                    <img
+                      src={slot.preview}
+                      alt={`사진 ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    {/* 대표 사진 뱃지 */}
+                    {idx === 0 && (
+                      <span className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                        대표
+                      </span>
+                    )}
+                    {/* 삭제 버튼 */}
+                    <button
+                      type="button"
+                      onClick={(e) => removePhoto(idx, e)}
+                      className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/60 rounded-full
+                                 flex items-center justify-center text-white"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    {/* 변경 오버레이 */}
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <span className="text-white text-xs font-medium">변경</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-1">
+                    {idx < MIN_PHOTOS ? (
+                      <>
+                        <svg className="w-6 h-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round"
+                            d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <span className="text-[10px] text-yellow-500 font-medium">필수</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <span className="text-[10px] text-gray-300">선택</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* 진행 바 */}
+          <div className="mt-3 w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300
+                ${filledCount >= MIN_PHOTOS ? 'bg-green-400' : 'bg-yellow-400'}`}
+              style={{ width: `${Math.min(100, (filledCount / MIN_PHOTOS) * 100)}%` }}
+            />
+          </div>
+
+          {errors.photos && (
+            <p className="text-xs text-red-400 mt-1.5">{errors.photos}</p>
+          )}
         </div>
 
-        {/* 이름 + 나이 */}
+        {/* ── 이름 + 나이 ── */}
         <div className="flex gap-3">
           <div className="flex-1">
             <label className="text-xs text-gray-400 mb-1.5 block">이름</label>
@@ -196,7 +318,7 @@ export default function ProfileSetupPage() {
           </div>
         </div>
 
-        {/* 국적 */}
+        {/* ── 국적 ── */}
         <div>
           <label className="text-xs text-gray-400 mb-2 block">국적</label>
           <div className="flex gap-2">
@@ -216,7 +338,7 @@ export default function ProfileSetupPage() {
           {errors.nationality && <p className="text-xs text-red-400 mt-1">{errors.nationality}</p>}
         </div>
 
-        {/* 관심사 */}
+        {/* ── 관심사 ── */}
         <div>
           <label className="text-xs text-gray-400 mb-2 block">관심사 (복수 선택)</label>
           <div className="flex flex-wrap gap-2">
@@ -236,7 +358,7 @@ export default function ProfileSetupPage() {
           {errors.interests && <p className="text-xs text-red-400 mt-1">{errors.interests}</p>}
         </div>
 
-        {/* 자기소개 */}
+        {/* ── 자기소개 ── */}
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <label className="text-xs text-gray-400">자기소개</label>
@@ -264,7 +386,7 @@ export default function ProfileSetupPage() {
           {errors.bio && <p className="text-xs text-red-400 mt-1">{errors.bio}</p>}
         </div>
 
-        {/* 연애관 */}
+        {/* ── 연애관 ── */}
         <div>
           <label className="text-xs text-gray-400 mb-1.5 block">
             연애관 <span className="text-gray-300">(장거리 연애, 미래 계획 등)</span>
@@ -285,14 +407,18 @@ export default function ProfileSetupPage() {
           <p className="text-xs text-red-400 text-center">{errors.submit}</p>
         )}
 
-        {/* 제출 버튼 */}
+        {/* ── 제출 버튼 ── */}
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || filledCount < MIN_PHOTOS}
           className="w-full bg-[#0f0f0f] text-white rounded-2xl py-3.5 text-sm font-medium
-                     active:scale-[0.98] transition-transform mb-2 disabled:opacity-50"
+                     active:scale-[0.98] transition-transform mb-2 disabled:opacity-40"
         >
-          {submitting ? '저장 중...' : '프로필 완성하기'}
+          {submitting
+            ? '저장 중...'
+            : filledCount < MIN_PHOTOS
+              ? `사진을 ${MIN_PHOTOS - filledCount}장 더 추가해 주세요`
+              : '프로필 완성하기'}
         </button>
       </div>
     </div>
