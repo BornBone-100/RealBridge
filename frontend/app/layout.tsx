@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import BottomNav from '@/components/BottomNav';
+import SwRegistration from '@/components/SwRegistration';
 
 export const metadata: Metadata = {
   title: '3rd Vibe | 써드 바이브',
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </footer>
         </div>
         <BottomNav />
+        <SwRegistration />
       </body>
     </html>
   );
