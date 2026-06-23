@@ -2,15 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Nationality } from '@/lib/types';
 import { getClient } from '@/lib/supabase';
 
 const INTERESTS = ['여행', '맛집', '카페', '음악', '독서', '운동', '요리', '게임', '영화', '반려동물'];
-const NATIONALITIES: { code: Nationality; label: string; flag: string }[] = [
-  { code: 'KR', label: '한국', flag: '🇰🇷' },
-  { code: 'JP', label: '일본', flag: '🇯🇵' },
-  { code: 'TW', label: '대만', flag: '🇹🇼' },
-];
 const MIN_BIO_LENGTH = 100;
 const MIN_PHOTOS = 3;
 const MAX_PHOTOS = 6;
@@ -32,7 +26,6 @@ export default function ProfileSetupPage() {
 
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
-  const [nationality, setNationality] = useState<Nationality | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [bio, setBio] = useState('');
   const [datingValues, setDatingValues] = useState('');
@@ -87,7 +80,6 @@ export default function ProfileSetupPage() {
       e.photos = `사진을 ${MIN_PHOTOS}장 이상 등록해 주세요. (현재 ${filledCount}장)`;
     if (!name.trim()) e.name = '이름을 입력해 주세요.';
     if (!age || isNaN(Number(age))) e.age = '나이를 입력해 주세요.';
-    if (!nationality) e.nationality = '국적을 선택해 주세요.';
     if (interests.length < 1) e.interests = '관심사를 1개 이상 선택해 주세요.';
     if (bio.length < MIN_BIO_LENGTH)
       e.bio = `자기소개를 ${MIN_BIO_LENGTH}자 이상 작성해 주세요. (현재 ${bio.length}자)`;
@@ -138,7 +130,7 @@ export default function ProfileSetupPage() {
           name: name.trim(),
           birth_year: birthYear,
           bio: bio.trim(),
-          ...(nationality && { nationality }),
+          nationality: 'KR',
           hobbies: interests,
           profile_photo_url: photoUrls[0] ?? null,
           profile_photos: photoUrls,
@@ -209,26 +201,6 @@ export default function ProfileSetupPage() {
             />
             {errors.age && <p className="text-xs text-red-400 mt-1">{errors.age}</p>}
           </div>
-        </div>
-
-        {/* ── 국적 ── */}
-        <div>
-          <label className="text-xs text-gray-400 mb-2 block">국적</label>
-          <div className="flex gap-2">
-            {NATIONALITIES.map((n) => (
-              <button
-                key={n.code}
-                onClick={() => setNationality(n.code)}
-                className={`flex-1 py-2.5 rounded-xl text-sm border transition-all
-                  ${nationality === n.code
-                    ? 'border-[#0f0f0f] bg-[#0f0f0f] text-white'
-                    : 'border-gray-200 text-gray-600'}`}
-              >
-                {n.flag} {n.label}
-              </button>
-            ))}
-          </div>
-          {errors.nationality && <p className="text-xs text-red-400 mt-1">{errors.nationality}</p>}
         </div>
 
         {/* ── 사진 섹션 ── */}

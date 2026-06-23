@@ -1,5 +1,5 @@
 // ── 기본 타입 ─────────────────────────────────────────────
-export type Nationality = 'KR' | 'JP' | 'TW';
+export type Nationality = 'KR';
 export type IdType = 'passport' | 'id_card';
 export type SubscriptionTier = 'basic' | 'truenote';
 
@@ -7,7 +7,6 @@ export type SubscriptionTier = 'basic' | 'truenote';
 export interface User {
   userId: string;
   name: string;
-  nationality: Nationality;
   age: number;
   city: string;
   job: string;
@@ -23,7 +22,6 @@ export interface User {
 // ── 인증 ─────────────────────────────────────────────────
 export interface OtpSendRequest {
   phone: string;
-  nationality: Nationality;
 }
 
 export interface OtpSendResponse {
@@ -64,7 +62,6 @@ export interface ProfileSetupRequest {
   user_id: string;
   name: string;
   age: number;
-  nationality: Nationality;
   city: string;
   job?: string;
   bio: string;

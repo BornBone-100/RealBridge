@@ -36,7 +36,7 @@ export interface ChatStatus {
 interface UseChatOptions {
   roomId:      string;
   userId:      string;
-  nationality: 'KR' | 'JP' | 'TW';
+  nationality?: 'KR';
   wsBaseUrl?:  string;
 }
 
@@ -161,7 +161,7 @@ export function useTranslatedChat({
       id:             tempId,
       senderId:       userId,
       original:       text,
-      originalLang:   { KR: 'KO', JP: 'JA', TW: 'ZH' }[nationality] ?? 'KO',
+      originalLang:   'KO',
       translated:     null,
       translatedLang: null,
       isMe:           true,

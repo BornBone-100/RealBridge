@@ -33,8 +33,8 @@ function StepIdSelect({
   onNext: () => void;
 }) {
   const options: { type: IdType; label: string; sub: string; icon: string }[] = [
-    { type: 'passport', label: '여권', sub: '한국 · 일본 · 대만 여권 가능', icon: '🛂' },
-    { type: 'id_card', label: '주민등록증 / 신분증', sub: '거주 국가 발급 신분증', icon: '🪪' },
+    { type: 'passport', label: '여권', sub: '한국 여권', icon: '🛂' },
+    { type: 'id_card', label: '주민등록증', sub: '대한민국 주민등록증', icon: '🪪' },
   ];
 
   return (
