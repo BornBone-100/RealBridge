@@ -2,12 +2,16 @@
 3rd Vibe — PortOne 하이브리드 결제 & 부분 환불 API
 =====================================================
 결제 구조:
-  총액 60,000원 = 서비스 수수료 30,000원(소멸) + 보증금 30,000원(환불성)
+  총액 30,000원 = 매칭비 15,000원(소멸) + 보증금 15,000원(귀책사유 없으면 환불)
+
+보증금 환불 원칙:
+  - 본인 귀책사유 없음 → 보증금 15,000원 전액 환불
+  - 본인 귀책사유 있음 (노쇼·일방취소·잠수 등) → 환불 불가
 
 엔드포인트:
   POST /api/payment/verify        결제 검증 & DB 기록
   POST /api/payment/refund-deposit 보증금만 부분 환불 (귀책사유 없음)
-  POST /api/payment/release       보증금 소멸 처리 (3회 성공)
+  POST /api/payment/release       보증금 소멸 처리 (귀책사유 있음)
   GET  /api/payment/status/{uid}  결제 현황 조회
   POST /api/payment/webhook       PortOne 웹훅
 """
@@ -32,9 +36,9 @@ PORTONE_STORE_ID        = os.getenv("PORTONE_STORE_ID", "")
 PORTONE_WEBHOOK_SECRET  = os.getenv("PORTONE_WEBHOOK_SECRET", PORTONE_API_SECRET)  # 미설정 시 API Secret 폴백
 PORTONE_API_BASE        = "https://api.portone.io"
 
-TOTAL_AMOUNT   = 60_000
-SERVICE_FEE    = 30_000   # 소멸성 수수료
-DEPOSIT_AMOUNT = 30_000   # 환불성 보증금
+TOTAL_AMOUNT   = 30_000
+SERVICE_FEE    = 15_000   # 소멸성 수수료
+DEPOSIT_AMOUNT = 15_000   # 환불성 보증금 (본인 귀책사유 없으면 환불)
 
 
 # ── 스키마 ────────────────────────────────────────────────
@@ -132,7 +136,7 @@ async def verify_payment(req: VerifyRequest, db=Depends(get_admin_db)):
 @router.post("/refund-deposit")
 async def refund_deposit(req: RefundDepositRequest, db=Depends(get_admin_db)):
     """
-    귀책사유 없는 매칭 중단 → 보증금 30,000원만 부분 환불.
+    본인 귀책사유 없는 경우 → 보증금 15,000원 부분 환불.
     서비스 수수료 30,000원은 소멸.
     어드민 또는 시스템이 호출.
     """
@@ -178,7 +182,7 @@ async def refund_deposit(req: RefundDepositRequest, db=Depends(get_admin_db)):
 @router.post("/release")
 async def release_deposit(req: ReleaseRequest, db=Depends(get_admin_db)):
     """
-    3회 만남 모두 성공 → 보증금 소멸 처리.
+    본인 귀책사유 있음 → 보증금 소멸 처리 (환불 불가).
     더 이상 환불 불가 상태로 변경.
     """
     row = db.table("payments").select("*").eq("user_id", req.user_id).eq(

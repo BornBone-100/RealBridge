@@ -27,35 +27,35 @@ const IMP_KEY = process.env.NEXT_PUBLIC_PORTONE_IMP_KEY ?? '';
 
 // 금액 상수
 const SERVICE_FEE = 15_000;
-const DEPOSIT     = 25_000;
-const TOTAL       = SERVICE_FEE + DEPOSIT; // 40,000원
+const DEPOSIT     = 15_000;
+const TOTAL       = SERVICE_FEE + DEPOSIT; // 30,000원
 
 // 필수 동의 항목
 const AGREEMENTS = [
   {
     id: 'fee_nonrefund',
     label: '매칭비 15,000원은 환불되지 않습니다.',
-    detail: '매칭 큐레이션 서비스 비용으로, 결제 즉시 소멸됩니다.',
+    detail: '매칭 큐레이션 서비스 비용으로, 결제 즉시 소멸됩니다. 매칭 성사 여부와 무관하게 반환되지 않습니다.',
   },
   {
-    id: 'deposit_refund',
-    label: '보증금 25,000원은 3회 만남 완료 후 전액 반환됩니다.',
-    detail: '3회 만남을 모두 진행한 경우 신청일로부터 7영업일 내에 환불됩니다.',
+    id: 'deposit_condition',
+    label: '보증금 15,000원은 본인 귀책사유가 없을 때 반환됩니다.',
+    detail: '약속을 지키려는 의지가 있고, 만남이 불발된 사유가 본인에게 없는 경우 보증금 전액을 환불해 드립니다. 반대로 본인의 귀책사유(노쇼·일방적 취소·잠수 등)로 만남이 무산될 경우 보증금은 반환되지 않습니다.',
+  },
+  {
+    id: 'fault_definition',
+    label: '본인 귀책사유의 범위를 이해하고 동의합니다.',
+    detail: '귀책사유란 ① 당일 연락 없는 노쇼 ② 합의 없는 일방적 일정 취소 ③ 2회 이상 만남 회피 ④ 허위 인증 사진 제출 ⑤ 서비스 규정 위반 행위를 포함합니다. 귀책사유 판단은 3rd Vibe 운영팀이 양측 의견을 청취하여 최종 결정합니다.',
   },
   {
     id: 'photo_cert',
     label: '매 만남마다 장소·날짜가 보이는 인증 사진을 제출해야 합니다.',
-    detail: '인증 사진을 제출하지 않으면 해당 회차는 만남으로 인정되지 않으며, 보증금 반환 조건에서 제외됩니다.',
+    detail: '인증 사진을 제출하지 않으면 해당 회차는 만남으로 인정되지 않습니다. 단, 인증 사진 미제출 자체가 귀책사유로 간주되지는 않으며, 실제 만남 여부를 종합적으로 판단합니다.',
   },
   {
-    id: 'noshow',
-    label: '고의적 노쇼·허위 인증 시 보증금이 반환되지 않을 수 있습니다.',
-    detail: '상대방의 귀책 없이 본인이 약속을 어긴 경우 보증금 전부 또는 일부가 몰수될 수 있습니다.',
-  },
-  {
-    id: 'partial_refund',
-    label: '양측 귀책 없이 3회 미달 종료 시 잔여 보증금을 환불합니다.',
-    detail: '불가피한 사정으로 3회 미달 종료되는 경우, 진행된 만남 비율을 제외한 보증금을 돌려드립니다.',
+    id: 'counterpart_fault',
+    label: '상대방 귀책사유로 만남이 불발될 경우 보증금을 환불받습니다.',
+    detail: '상대방의 귀책사유로 3회 만남이 이루어지지 않은 경우, 본인의 보증금은 전액 환불됩니다. 환불은 귀책사유 확인 후 7영업일 이내 처리됩니다.',
   },
 ] as const;
 
@@ -218,7 +218,7 @@ export default function DepositPage() {
             <div className="flex justify-between items-center bg-white/10 rounded-xl px-4 py-3">
               <div>
                 <p className="text-sm font-medium">약속 보증금</p>
-                <p className="text-xs text-white/50 mt-0.5">에스크로 보관 · 3회 완료 후 환불</p>
+                <p className="text-xs text-white/50 mt-0.5">에스크로 보관 · 본인 귀책 없으면 환불</p>
               </div>
               <span className="text-base font-bold">{DEPOSIT.toLocaleString()}원</span>
             </div>
@@ -229,10 +229,11 @@ export default function DepositPage() {
         <h3 className="text-sm font-bold text-gray-900 mb-3">3회 만남 보장제 안내</h3>
         {[
           { icon: '🤝', title: '3번의 실제 만남을 목표로', desc: '3rd Vibe 매니저가 직접 큐레이션하고 일정을 조율합니다' },
-          { icon: '📸', title: '매 만남마다 인증 사진 제출 필수', desc: '장소·날짜가 보이는 사진을 제출해야 해당 회차로 인정됩니다' },
           { icon: '💰', title: '보증금은 에스크로 안전 보관', desc: '결제 즉시 별도 에스크로에 보관 — 임의 사용 절대 불가' },
-          { icon: '↩️', title: '3회 완료 후 보증금 전액 환불', desc: '3회 만남 인증을 모두 완료하면 7영업일 내 보증금을 돌려드립니다' },
-          { icon: '✅', title: '매칭비는 소멸', desc: '매칭 큐레이션 서비스 비용으로, 환불되지 않습니다' },
+          { icon: '✅', title: '본인 귀책사유 없으면 보증금 전액 환불', desc: '약속을 지키려 했고 본인 잘못이 없다면, 만남 횟수와 무관하게 보증금을 돌려드립니다' },
+          { icon: '🚫', title: '본인 귀책사유 있으면 보증금 반환 불가', desc: '노쇼·일방적 취소·잠수 등 본인 귀책으로 만남이 무산되면 보증금은 몰수됩니다' },
+          { icon: '📸', title: '매 만남마다 인증 사진 제출 권장', desc: '장소·날짜가 보이는 사진을 제출하면 만남 사실을 명확히 입증할 수 있습니다' },
+          { icon: '🗂️', title: '매칭비는 소멸', desc: '매칭 큐레이션 서비스 비용으로, 어떤 경우에도 환불되지 않습니다' },
         ].map(item => (
           <div key={item.title} className="flex gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl flex-shrink-0">
@@ -245,11 +246,25 @@ export default function DepositPage() {
           </div>
         ))}
 
-        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-8">
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-4">
+          <p className="text-xs font-semibold text-amber-800 mb-1.5">⚠️ 보증금 환불 핵심 원칙</p>
           <p className="text-xs text-amber-700 leading-relaxed">
-            ⚠️ 고의적 노쇼, 허위 인증, 서비스 규정 위반 시<br />
-            보증금 환불이 제한됩니다.
+            보증금(15,000원)은 <strong>본인의 귀책사유 유무</strong>에 따라 환불 여부가 결정됩니다.<br /><br />
+            • 약속을 지키려 했고 본인 잘못이 없다면 → <strong>전액 환불</strong><br />
+            • 노쇼·일방 취소·잠수 등 본인 귀책이 있다면 → <strong>환불 불가</strong><br /><br />
+            귀책사유 판단은 양측 소명을 청취한 후 운영팀이 결정합니다.
           </p>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 mb-8">
+          <p className="text-xs font-semibold text-gray-700 mb-1.5">📋 귀책사유 해당 항목</p>
+          <ul className="text-xs text-gray-500 space-y-1 leading-relaxed list-none">
+            <li>· 당일 연락 없는 노쇼</li>
+            <li>· 합의 없는 일방적 일정 취소</li>
+            <li>· 2회 이상 만남 회피 또는 무응답</li>
+            <li>· 허위 인증 사진 제출</li>
+            <li>· 서비스 운영 규정 위반</li>
+          </ul>
         </div>
 
         <button onClick={() => setPayStep('agreement')}
