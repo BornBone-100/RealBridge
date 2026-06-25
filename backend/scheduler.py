@@ -173,6 +173,16 @@ async def send_tonight_feedback():
             )
             await send_sms(phone, sms_text)
 
+            # 인앱 알림 삽입
+            db.table("notifications").insert({
+                "user_id": uid,
+                "type":    "feedback",
+                "title":   f"{ms_no}차 만남 피드백을 남겨주세요 ⭐",
+                "body":    f"오늘 {theme} 어떠셨나요? 솔직한 후기가 더 좋은 매칭으로 이어져요.",
+                "is_read": False,
+                "data":    {"milestone_id": ms["id"], "milestone_no": str(ms_no)},
+            }).execute()
+
         # 3. feedback_sent_at 업데이트
         db.table("date_milestones").update({
             "feedback_sent_at": now_str
@@ -258,13 +268,21 @@ async def process_feedback_response(
                 "state": "success",
             }).eq("id", match_id).execute()
 
-            # 매니저에게 알림 (컨시어지 메시지)
+            # 매니저에게 알림 (컨시어지 메시지) + 인앱 알림
             for uid in [user_a, user_b]:
                 db.table("concierge_messages").insert({
                     "user_id":       uid,
                     "content":       "🎉 서로 계속 만나고 싶어한다는 결과가 나왔어요!\n3rd Vibe 매니저가 다음 단계를 안내드릴게요 💕",
                     "is_from_admin": True,
                     "is_read":       False,
+                }).execute()
+                db.table("notifications").insert({
+                    "user_id": uid,
+                    "type":    "match_result",
+                    "title":   "🎉 서로 계속 만나고 싶어해요!",
+                    "body":    "3차 만남 결과, 양쪽 모두 좋은 감정을 가지고 있어요. 매니저가 다음 단계를 안내드릴게요.",
+                    "is_read": False,
+                    "data":    {"match_id": match_id},
                 }).execute()
 
             return {"success": True, "result": "match_success"}
@@ -282,6 +300,14 @@ async def process_feedback_response(
                         f"{INTERNAL_API}/api/payment/refund-deposit",
                         json={"user_id": uid, "reason": "3차 만남 종료 — 환불"},
                     )
+                db.table("notifications").insert({
+                    "user_id": uid,
+                    "type":    "match_result",
+                    "title":   "3차 만남 결과가 나왔어요",
+                    "body":    "아쉽게도 이번 인연은 여기까지예요. 보증금은 곧 환불될 예정이에요.",
+                    "is_read": False,
+                    "data":    {"match_id": match_id},
+                }).execute()
             return {"stopped": True, "refund_triggered": True, "result": "ended"}
 
     return {"no_action": True}

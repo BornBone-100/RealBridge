@@ -503,13 +503,26 @@ async def create_match(req: CreateMatchRequest, db=Depends(get_admin_db)):
             "state": "waiting",
         }).execute()
 
-        # 주간 소개팅 카운터 증가 (양쪽)
+        match_id = result.data[0]["id"] if result.data else None
+
+        # 주간 소개팅 카운터 증가 + 인앱 알림 (양쪽)
         for uid in [req.user_a_id, req.user_b_id]:
             cur = db.table("users").select("weekly_intro_count").eq("id", uid).single().execute()
             cur_count = (cur.data.get("weekly_intro_count") or 0) if cur.data else 0
             db.table("users").update({
                 "weekly_intro_count": cur_count + 1
             }).eq("id", uid).execute()
+
+            # 새 소개팅 알림
+            if match_id:
+                db.table("notifications").insert({
+                    "user_id": uid,
+                    "type":    "new_intro",
+                    "title":   "💌 새로운 소개팅이 도착했어요!",
+                    "body":    "큐레이터가 정성껏 고른 상대방이에요. 지금 채팅을 시작해보세요.",
+                    "is_read": False,
+                    "data":    {"match_id": match_id},
+                }).execute()
     except Exception as e:
         err_str = str(e)
         if "already has an active match" in err_str:
