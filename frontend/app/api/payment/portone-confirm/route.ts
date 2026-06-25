@@ -9,8 +9,8 @@ const BACKEND_URL        = process.env.NEXT_PUBLIC_API_URL ?? '';
 const INTERNAL_SECRET    = process.env.INTERNAL_API_SECRET ?? '';
 
 const SERVICE_FEE    = 15_000;
-const DEPOSIT_AMOUNT = 25_000;
-const EXPECTED_TOTAL = SERVICE_FEE + DEPOSIT_AMOUNT; // 40,000
+const DEPOSIT_AMOUNT = 15_000;
+const EXPECTED_TOTAL = SERVICE_FEE + DEPOSIT_AMOUNT; // 30,000
 
 // 포트원 V1 액세스 토큰 발급
 async function getPortOneToken(): Promise<string> {
