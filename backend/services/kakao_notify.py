@@ -45,7 +45,7 @@ TEMPLATE_CODES = {
 # #{변수} 형식으로 치환됩니다.
 TEMPLATE_BODIES = {
     "join": """\
-안녕하세요, #{name}님! 🎉
+안녕하세요, #{이름}님! 🎉
 3rd Vibe에 가입을 환영합니다.
 
 서류 인증을 완료하시면 매칭이 시작됩니다.
@@ -54,13 +54,12 @@ TEMPLATE_BODIES = {
 문의사항은 카카오톡 채널을 통해 연락 주세요.\
 """,
     "payment": """\
-#{name}님, 결제가 완료되었습니다. 💳
+#{이름}님, 보증금 결제가 완료되었습니다. 💳
 
-· 매칭비: 15,000원 (매칭 큐레이션 비용 · 소멸)
-· 약속 보증금: 15,000원 (본인 귀책사유 없으면 환불)
-· 합계: 30,000원
+· 결제 금액: #{금액}원
+· 상대방: #{상대방이름}님
 
-※ 보증금은 본인의 귀책사유(노쇼·일방취소 등)가 없을 경우 환불됩니다.
+보증금은 본인의 귀책사유(노쇼·일방취소 등)가 없을 경우 환불됩니다.
 
 매칭 큐레이션을 시작합니다.
 보통 3~5 영업일 내 첫 매칭을 안내드릴게요!
@@ -68,18 +67,19 @@ TEMPLATE_BODIES = {
 문의사항은 카카오톡 채널을 통해 연락 주세요.\
 """,
     "match": """\
-#{name}님, 새로운 인연이 연결되었습니다! 💑
+[3rd Vibe] #{이름}님, 새로운 매칭이 도착했어요!
 
-3rd Vibe 매니저가 일정 조율을 도와드릴게요.
-앱에서 상대방 프로필을 확인해 보세요.
+큐레이터가 #{이름}님을 위해 정성껏 선택한 상대입니다.
+지금 앱에서 확인하고 대화를 시작해 보세요.
 
-문의사항은 카카오톡 채널을 통해 연락 주세요.\
+※ 본 메시지는 3rd Vibe 소개팅 앱 이용자에게 발송됩니다.\
 """,
     "meeting": """\
-#{name}님, 내일 만남 일정이 있어요! 📅
+#{이름}님, 내일 만남 일정이 있어요! 📅
 
-· 일시: #{date}
-· 장소: #{place}
+· 날짜: #{날짜}
+· 시간: #{시간}
+· 장소: #{장소}
 
 설레는 만남이 되길 바랍니다 ✨
 변경/취소는 카카오톡 채널로 연락 주세요.\
@@ -105,20 +105,22 @@ def _solapi_auth_header() -> str:
 
 
 async def _send_alimtalk(to: str, template_key: str, variables: dict) -> bool:
-    """알림톡 발송 (템플릿 코드가 없으면 SMS 폴백)"""
+    """알림톡 발송 (템플릿 코드가 없으면 SMS 폴백)
+    variables 키는 한글 (예: {"이름": "홍길동", "금액": "30,000"})
+    """
     template_id = TEMPLATE_CODES.get(template_key, "")
     to_norm     = _normalize_phone(to)
 
     if not SOLAPI_API_KEY or not SOLAPI_API_SECRET or not to_norm:
         return False
 
+    # 변수 치환으로 본문 생성 (#{이름} 형식)
+    body = TEMPLATE_BODIES[template_key]
+    for k, v in variables.items():
+        body = body.replace(f"#{{{k}}}", str(v))
+
     # 알림톡 사용 가능한 경우
     if KAKAO_PF_ID and template_id:
-        # 변수 치환으로 본문 생성
-        body = TEMPLATE_BODIES[template_key]
-        for k, v in variables.items():
-            body = body.replace(f"#{{{k}}}", str(v))
-
         payload = {
             "message": {
                 "to":   to_norm,
@@ -127,7 +129,6 @@ async def _send_alimtalk(to: str, template_key: str, variables: dict) -> bool:
                     "pfId":       KAKAO_PF_ID,
                     "templateId": template_id,
                     "variables":  {f"#{{{k}}}": str(v) for k, v in variables.items()},
-                    # 채널 채팅 버튼 (심사 때 버튼도 함께 등록해야 함)
                     "buttons": [
                         {
                             "buttonType": "WL",
@@ -141,9 +142,6 @@ async def _send_alimtalk(to: str, template_key: str, variables: dict) -> bool:
         }
     else:
         # SMS 폴백 (템플릿 미승인 상태)
-        body = TEMPLATE_BODIES[template_key]
-        for k, v in variables.items():
-            body = body.replace(f"#{{{k}}}", str(v))
         payload = {
             "message": {
                 "to":   to_norm,
@@ -169,22 +167,25 @@ async def _send_alimtalk(to: str, template_key: str, variables: dict) -> bool:
 
 async def notify_join(phone: str, name: str) -> bool:
     """회원가입 완료 알림톡"""
-    return await _send_alimtalk(phone, "join", {"name": name})
+    return await _send_alimtalk(phone, "join", {"이름": name})
 
 
-async def notify_payment(phone: str, name: str) -> bool:
+async def notify_payment(phone: str, name: str, amount: str = "30,000", partner_name: str = "") -> bool:
     """결제 완료 알림톡"""
-    return await _send_alimtalk(phone, "payment", {"name": name})
+    return await _send_alimtalk(
+        phone, "payment",
+        {"이름": name, "금액": amount, "상대방이름": partner_name},
+    )
 
 
 async def notify_match(phone: str, name: str) -> bool:
     """매칭 성사 알림톡"""
-    return await _send_alimtalk(phone, "match", {"name": name})
+    return await _send_alimtalk(phone, "match", {"이름": name})
 
 
-async def notify_meeting(phone: str, name: str, date: str, place: str) -> bool:
+async def notify_meeting(phone: str, name: str, date: str, time: str, place: str) -> bool:
     """만남 일정 안내 알림톡 (전날 발송)"""
     return await _send_alimtalk(
         phone, "meeting",
-        {"name": name, "date": date, "place": place},
+        {"이름": name, "날짜": date, "시간": time, "장소": place},
     )
