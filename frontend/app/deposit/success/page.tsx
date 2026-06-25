@@ -87,16 +87,16 @@ function SuccessContent() {
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">약속 보증금</span>
-          <span className="font-medium text-gray-900">25,000원</span>
+          <span className="font-medium text-gray-900">15,000원</span>
         </div>
         <div className="border-t border-gray-200 pt-3 flex justify-between text-sm font-bold">
           <span className="text-gray-900">합계</span>
-          <span className="text-gray-900">40,000원</span>
+          <span className="text-gray-900">30,000원</span>
         </div>
         <div className="bg-blue-50 rounded-xl p-3 mt-1">
           <p className="text-xs text-blue-600 leading-relaxed">
-            🔒 보증금 25,000원은 에스크로 보관 중<br />
-            3회 만남 인증 완료 후 7영업일 내 전액 환불됩니다
+            🔒 보증금 15,000원은 에스크로 보관 중<br />
+            본인 귀책사유 없이 만남이 불발될 경우 7영업일 내 전액 환불됩니다
           </p>
         </div>
       </div>
