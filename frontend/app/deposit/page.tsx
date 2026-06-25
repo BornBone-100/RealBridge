@@ -120,6 +120,38 @@ export default function DepositPage() {
       return;
     }
 
+    // ── 팝업 차단 우회 ──────────────────────────────────────────────────
+    // Chrome은 async 컨텍스트에서의 window.open()을 차단합니다.
+    // 클릭 핸들러의 동기 컨텍스트(await 이전)에서 빈 창을 미리 열어두고,
+    // PortOne SDK가 나중에 호출하는 window.open()을 가로채 재활용합니다.
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    const origOpen = window.open.bind(window) as typeof window.open;
+    let preOpenedWin: Window | null = null;
+
+    if (!isMobile) {
+      preOpenedWin = origOpen(
+        'about:blank',
+        'portone_pay',
+        'width=800,height=700,top=100,left=100,scrollbars=yes,resizable=yes'
+      );
+
+      if (preOpenedWin) {
+        // PortOne SDK의 window.open 호출을 가로채 미리 연 창을 재사용
+        (window as Window & { open: typeof window.open }).open = function (
+          url?: string | URL,
+          target?: string,
+          _features?: string
+        ): Window | null {
+          if (preOpenedWin && !preOpenedWin.closed && url && String(url) !== 'about:blank') {
+            preOpenedWin.location.href = String(url);
+            return preOpenedWin;
+          }
+          return origOpen(url, target, _features);
+        };
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     setPayStep('processing');
 
     try {
@@ -145,18 +177,24 @@ export default function DepositPage() {
           m_redirect_url: redirectUrl,  // 모바일 리다이렉트
         },
         (rsp: PortOneResponse) => {
+          // window.open 복원
+          (window as Window & { open: typeof window.open }).open = origOpen;
           // 데스크탑 콜백
           if (rsp.success) {
             router.push(
               `/deposit/success?imp_uid=${rsp.imp_uid}&merchant_uid=${merchantUid}`
             );
           } else {
+            if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
             setErrorMsg(rsp.error_msg ?? '결제가 취소되었습니다.');
             setPayStep('error');
           }
         }
       );
     } catch (e: unknown) {
+      // window.open 복원
+      (window as Window & { open: typeof window.open }).open = origOpen;
+      if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
       const msg = e instanceof Error ? e.message : '결제 처리 중 오류가 발생했습니다.';
       setErrorMsg(msg);
       setPayStep('error');
